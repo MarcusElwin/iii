@@ -284,7 +284,7 @@ pub async fn handle_local_add(path: &str, force: bool, reset_config: bool, brief
     }
 
     // 3. Detect language / project type
-    let _project = match load_project_info(&project_path) {
+    let project = match load_project_info(&project_path) {
         Some(p) => p,
         None => {
             eprintln!(
@@ -296,6 +296,11 @@ pub async fn handle_local_add(path: &str, force: bool, reset_config: bool, brief
             return 1;
         }
     };
+
+    if let Err(msg) = project.validate() {
+        eprintln!("{} {}", "error:".red(), msg);
+        return 1;
+    }
 
     // 4. Resolve worker name
     let worker_name = resolve_worker_name(&project_path);
@@ -424,6 +429,11 @@ pub async fn start_local_worker(worker_name: &str, worker_path: &str, port: u16)
             return 1;
         }
     };
+
+    if let Err(msg) = project.validate() {
+        eprintln!("{} {}", "error:".red(), msg);
+        return 1;
+    }
 
     let language = project.language.as_deref().unwrap_or("typescript");
 
