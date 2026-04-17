@@ -767,7 +767,18 @@ class Sdk implements ISdk {
           ws.removeAllListeners()
           resolve()
         }
-        const timer = setTimeout(done, 500)
+        const timer = setTimeout(() => {
+          // Close handshake didn't complete in time. Force-close the
+          // underlying socket so it doesn't linger half-open until the
+          // OS TCP timeout — long-lived hosts that call shutdown()
+          // without exiting would otherwise leak the socket.
+          try {
+            ws.terminate()
+          } catch {
+            // Already closed.
+          }
+          done()
+        }, 500)
         timer.unref()
         ws.once('close', () => {
           clearTimeout(timer)

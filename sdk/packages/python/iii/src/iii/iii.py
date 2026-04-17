@@ -168,6 +168,18 @@ class III:
         for signum in (signal.SIGTERM, signal.SIGINT):
             try:
                 previous = signal.signal(signum, self._on_shutdown_signal)
+                # Collapse chains of III handlers: if `previous` is another
+                # III instance's _on_shutdown_signal, recording it directly
+                # would mean restoring a live peer's handler when WE remove
+                # ours. Walk to that peer's recorded predecessor instead so
+                # the chain unwinds to the host's original handler.
+                if (
+                    getattr(previous, "__func__", None)
+                    is getattr(self._on_shutdown_signal, "__func__", None)
+                    and getattr(previous, "__self__", None) is not self
+                ):
+                    other = previous.__self__
+                    previous = other._signal_handlers.get(signum, signal.SIG_DFL)
                 self._signal_handlers[signum] = previous
             except (ValueError, OSError) as exc:
                 # ValueError: not main thread. OSError: unsupported platform.
@@ -186,6 +198,16 @@ class III:
             return
         for signum, previous in self._signal_handlers.items():
             try:
+                # Only restore if our handler is still the active one. If
+                # something else (a newer III instance, host code) installed
+                # a handler after us, restoring `previous` would clobber it.
+                current = signal.getsignal(signum)
+                if not (
+                    getattr(current, "__func__", None)
+                    is getattr(self._on_shutdown_signal, "__func__", None)
+                    and getattr(current, "__self__", None) is self
+                ):
+                    continue
                 signal.signal(signum, previous)
             except (ValueError, OSError):
                 pass
