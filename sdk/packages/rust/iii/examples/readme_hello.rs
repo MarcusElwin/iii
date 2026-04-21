@@ -5,9 +5,7 @@
 //! README by hand — update this file and re-run the docs generator.
 
 use iii_sdk::builtin_triggers::{HttpMethod, HttpTriggerConfig};
-use iii_sdk::{
-    IIITrigger, InitOptions, RegisterFunction, TriggerRequest, register_worker,
-};
+use iii_sdk::{IIITrigger, InitOptions, RegisterFunction, TriggerRequest, register_worker};
 use serde_json::{Value, json};
 
 #[tokio::main]
@@ -16,13 +14,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // background runtime and auto-connects to the engine over WebSocket.
     let iii = register_worker("ws://localhost:49134", InitOptions::default());
 
-    iii.register_function(RegisterFunction::new_async("greet", |input: Value| async move {
-        let name = input
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("world");
-        Ok::<Value, iii_sdk::IIIError>(json!({ "message": format!("Hello, {name}!") }))
-    }));
+    iii.register_function(RegisterFunction::new_async(
+        "greet",
+        |input: Value| async move {
+            let name = input
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("world");
+            Ok::<Value, iii_sdk::IIIError>(json!({ "message": format!("Hello, {name}!") }))
+        },
+    ));
 
     // Recommended: the typed IIITrigger builder.
     iii.register_trigger(

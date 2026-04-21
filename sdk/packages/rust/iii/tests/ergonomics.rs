@@ -42,8 +42,11 @@ fn trigger_request_with_action_void() {
 
 #[test]
 fn trigger_request_with_action_enqueue() {
-    let req = TriggerRequest::new("orders::process", json!({ "id": 1 }))
-        .with_action(TriggerAction::Enqueue { queue: "payments".into() });
+    let req = TriggerRequest::new("orders::process", json!({ "id": 1 })).with_action(
+        TriggerAction::Enqueue {
+            queue: "payments".into(),
+        },
+    );
     match req.action {
         Some(TriggerAction::Enqueue { queue }) => assert_eq!(queue, "payments"),
         _ => panic!("expected Enqueue action"),
