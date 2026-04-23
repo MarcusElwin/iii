@@ -189,21 +189,20 @@ fn salted_sha256(input: &str) -> String {
 }
 
 fn generate_container_device_id() -> String {
-    let hostname = container_hostname();
-
     if let Some(host_device_id) = find_project_ini_device_id() {
+        let hostname = container_hostname();
         return salted_sha256(&format!("{host_device_id}-{hostname}"));
     }
 
-    let base = match std::env::var("III_HOST_USER_ID")
+    if let Some(host_id) = std::env::var("III_HOST_USER_ID")
         .ok()
         .filter(|s| !s.is_empty())
     {
-        Some(host_id) => format!("{host_id}-{hostname}"),
-        None => hostname,
-    };
+        let hostname = container_hostname();
+        return salted_sha256(&format!("{host_id}-{hostname}"));
+    }
 
-    format!("docker-{}", salted_sha256(&base))
+    "unknown".to_string()
 }
 
 fn generate_new_device_id() -> String {
@@ -1010,5 +1009,60 @@ state:
     fn test_detect_timezone_returns_nonempty() {
         let tz = detect_timezone();
         assert!(!tz.is_empty(), "timezone should not be empty");
+    }
+
+    // =========================================================================
+    // generate_container_device_id
+    // =========================================================================
+
+    #[test]
+    #[serial]
+    fn test_container_device_id_unknown_without_host_identity() {
+        let dir = tempfile::tempdir().unwrap();
+        unsafe {
+            env::set_var("III_PROJECT_ROOT", dir.path());
+            env::remove_var("III_HOST_USER_ID");
+        }
+        // No .iii/project.ini device_id and no III_HOST_USER_ID.
+        assert_eq!(generate_container_device_id(), "unknown");
+        unsafe {
+            env::remove_var("III_PROJECT_ROOT");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_container_device_id_uses_project_ini_device_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let iii = dir.path().join(".iii");
+        std::fs::create_dir_all(&iii).unwrap();
+        std::fs::write(iii.join("project.ini"), "device_id=host-dev-abc\n").unwrap();
+        unsafe {
+            env::set_var("III_PROJECT_ROOT", dir.path());
+            env::remove_var("III_HOST_USER_ID");
+        }
+        let id = generate_container_device_id();
+        assert_ne!(id, "unknown");
+        assert!(!id.is_empty());
+        unsafe {
+            env::remove_var("III_PROJECT_ROOT");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_container_device_id_uses_host_user_id() {
+        let dir = tempfile::tempdir().unwrap();
+        unsafe {
+            env::set_var("III_PROJECT_ROOT", dir.path());
+            env::set_var("III_HOST_USER_ID", "uid-1000");
+        }
+        let id = generate_container_device_id();
+        assert_ne!(id, "unknown");
+        assert!(!id.is_empty());
+        unsafe {
+            env::remove_var("III_PROJECT_ROOT");
+            env::remove_var("III_HOST_USER_ID");
+        }
     }
 }

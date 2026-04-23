@@ -128,7 +128,10 @@ fn read_project_ini(root: &std::path::Path) -> Option<ProjectIniData> {
 fn resolve_project_context(
     sdk_telemetry: Option<&WorkerConnectionTelemetryMeta>,
 ) -> ProjectContext {
-    let ini_data = find_project_root().and_then(|root| read_project_ini(&root));
+    let project_root = find_project_root();
+    let ini_data = project_root
+        .as_ref()
+        .and_then(|root| read_project_ini(root));
 
     let project_id = ini_data
         .as_ref()
@@ -142,7 +145,9 @@ fn resolve_project_context(
     let project_name = ini_data
         .as_ref()
         .and_then(|d| d.project_name.clone())
-        .or_else(|| sdk_telemetry.and_then(|t| t.project_name.clone()));
+        .or_else(|| sdk_telemetry.and_then(|t| t.project_name.clone()))
+        .or_else(|| directory_basename(project_root.as_deref()))
+        .or_else(|| directory_basename(std::env::current_dir().ok().as_deref()));
 
     let source = ini_data.as_ref().and_then(|d| d.source.clone());
 
@@ -151,6 +156,14 @@ fn resolve_project_context(
         project_name,
         source,
     }
+}
+
+fn directory_basename(path: Option<&std::path::Path>) -> Option<String> {
+    path?
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
 }
 
 fn get_or_create_device_id() -> String {
@@ -1299,14 +1312,92 @@ mod tests {
 
     #[test]
     #[serial]
-    fn test_resolve_project_context_none_when_unset() {
+    fn test_resolve_project_context_project_id_none_when_unset() {
         unsafe {
             env::remove_var("III_PROJECT_ID");
             env::remove_var("III_PROJECT_ROOT");
         }
         let ctx = resolve_project_context(None);
         assert_eq!(ctx.project_id, None);
-        assert_eq!(ctx.project_name, None);
+        // project_name falls back to the cwd basename when no project.ini or
+        // SDK metadata is available — tested separately below.
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_project_context_falls_back_to_project_root_basename() {
+        let dir = tempfile::Builder::new()
+            .prefix("my-demo-project-")
+            .tempdir()
+            .unwrap();
+        unsafe {
+            env::remove_var("III_PROJECT_ID");
+            env::set_var("III_PROJECT_ROOT", dir.path());
+        }
+        let ctx = resolve_project_context(None);
+        let expected = dir.path().file_name().unwrap().to_str().unwrap();
+        assert_eq!(ctx.project_name.as_deref(), Some(expected));
+        unsafe {
+            env::remove_var("III_PROJECT_ROOT");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_project_context_ini_beats_basename() {
+        let dir = tempfile::Builder::new()
+            .prefix("some-other-dir-")
+            .tempdir()
+            .unwrap();
+        let iii_dir = dir.path().join(".iii");
+        std::fs::create_dir_all(&iii_dir).unwrap();
+        std::fs::write(iii_dir.join("project.ini"), "project_name=from-ini\n").unwrap();
+        unsafe {
+            env::remove_var("III_PROJECT_ID");
+            env::set_var("III_PROJECT_ROOT", dir.path());
+        }
+        let ctx = resolve_project_context(None);
+        assert_eq!(ctx.project_name, Some("from-ini".to_string()));
+        unsafe {
+            env::remove_var("III_PROJECT_ROOT");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_project_context_sdk_beats_basename() {
+        let dir = tempfile::Builder::new()
+            .prefix("fallback-dir-")
+            .tempdir()
+            .unwrap();
+        unsafe {
+            env::remove_var("III_PROJECT_ID");
+            env::set_var("III_PROJECT_ROOT", dir.path());
+        }
+        let telemetry = WorkerConnectionTelemetryMeta {
+            language: None,
+            project_name: Some("sdk-name".to_string()),
+            framework: None,
+        };
+        let ctx = resolve_project_context(Some(&telemetry));
+        assert_eq!(ctx.project_name, Some("sdk-name".to_string()));
+        unsafe {
+            env::remove_var("III_PROJECT_ROOT");
+        }
+    }
+
+    #[test]
+    fn test_directory_basename_returns_name() {
+        let path = std::path::PathBuf::from("/foo/bar/my-project");
+        assert_eq!(
+            directory_basename(Some(&path)),
+            Some("my-project".to_string())
+        );
+    }
+
+    #[test]
+    fn test_directory_basename_none_for_empty() {
+        assert_eq!(directory_basename(None), None);
     }
 
     // =========================================================================
