@@ -114,6 +114,27 @@ enum Commands {
         #[arg(name = "command")]
         target: Option<String>,
     },
+
+    #[command(hide = true)]
+    Telemetry(TelemetryArgs),
+}
+
+#[derive(clap::Args, Debug)]
+struct TelemetryArgs {
+    #[command(subcommand)]
+    command: TelemetryCommands,
+}
+
+#[derive(Subcommand, Debug)]
+enum TelemetryCommands {
+    /// Print the current host device_id used for telemetry.
+    ///
+    /// Intended for scripting: `export III_HOST_DEVICE_ID=$(iii telemetry device-id)`.
+    /// On first invocation this persists a new device_id to ~/.iii/telemetry.yaml
+    /// (same as a normal engine start). When run inside a container the printed
+    /// value will be a container-scoped id, so run it on the host.
+    #[command(hide = true)]
+    DeviceId,
 }
 
 fn should_init_logging_from_engine_config(cli: &Cli) -> bool {
@@ -190,6 +211,15 @@ async fn main() -> anyhow::Result<()> {
             let exit_code = cli::handle_update(target.as_deref()).await;
             std::process::exit(exit_code);
         }
+        Some(Commands::Telemetry(args)) => {
+            match args.command {
+                TelemetryCommands::DeviceId => {
+                    let id = iii::workers::telemetry::environment::get_or_create_device_id();
+                    println!("{id}");
+                }
+            }
+            Ok(())
+        }
         None => run_serve(&cli_args).await,
     }
 }
@@ -197,7 +227,7 @@ async fn main() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::Parser;
+    use clap::{CommandFactory, Parser};
     use iii::workers::worker::DEFAULT_PORT;
 
     #[test]
@@ -468,6 +498,59 @@ mod tests {
         assert_eq!(
             cli.install_event_properties.as_deref(),
             Some(r#"{"target_binary":"iii"}"#)
+        );
+    }
+
+    #[test]
+    fn hidden_telemetry_device_id_parses() {
+        let cli = Cli::try_parse_from(["iii", "telemetry", "device-id"])
+            .expect("should parse hidden telemetry device-id subcommand");
+        match cli.command {
+            Some(Commands::Telemetry(args)) => match args.command {
+                TelemetryCommands::DeviceId => {}
+            },
+            _ => panic!("expected Telemetry(DeviceId) subcommand"),
+        }
+    }
+
+    #[test]
+    fn telemetry_without_subcommand_fails() {
+        let result = Cli::try_parse_from(["iii", "telemetry"]);
+        assert!(
+            result.is_err(),
+            "'iii telemetry' with no subcommand should fail"
+        );
+    }
+
+    #[test]
+    fn telemetry_unknown_subcommand_fails() {
+        let result = Cli::try_parse_from(["iii", "telemetry", "bogus"]);
+        assert!(
+            result.is_err(),
+            "'iii telemetry bogus' should fail — only device-id is valid"
+        );
+    }
+
+    #[test]
+    fn telemetry_is_hidden_from_top_level_help() {
+        let mut cmd = Cli::command();
+        let top_help = cmd.render_help().to_string();
+        assert!(
+            !top_help.contains("telemetry"),
+            "top-level help should not mention hidden 'telemetry' subcommand, got:\n{top_help}"
+        );
+    }
+
+    #[test]
+    fn device_id_is_hidden_from_telemetry_help() {
+        let mut cmd = Cli::command();
+        let telemetry = cmd
+            .find_subcommand_mut("telemetry")
+            .expect("telemetry subcommand should exist (hidden)");
+        let help = telemetry.render_help().to_string();
+        assert!(
+            !help.contains("device-id"),
+            "'iii telemetry --help' should not mention hidden 'device-id' subcommand, got:\n{help}"
         );
     }
 
