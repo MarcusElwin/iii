@@ -1,64 +1,65 @@
 ---
 title: Welcome to iii
-description: A backend unification and orchestration system.
+description: A next-generation backend system that collapses distributed software into three primitives — Worker, Trigger, Function — eliminating integration complexity and making software unreasonably simple to create, extend, and modify.
 ---
 
-Today, building a typical backend means connecting many separate systems: API frameworks,
-a task queue, a cron scheduler, an event bus, a pub/sub layer, a state store,
-a WebSocket server, and an observability pipeline.
+## The Problem
 
-Each system brings its own setup, its own deployment, and its own
-failure modes. Balancing infrastructure and business logic becomes increasingly difficult
-with every new system.
+Software engineering has become an exercise in assembling categories of services. Each service arrives with its own internals, its own lifecycle, its own integration story, and its own failure modes. Four services means six possible integrations. Twenty means 190. Every new capability compounds the coordination cost of everything already in your stack.
 
-The result of balancing these many necessary systems are delayed delivery, difficulty debugging,
-transient issues, increased expenses, siloed domain and systems knowledge, and difficulty with
-onboarding new developers and AI agents.
+This pattern has been growing for forty years, and it is ending. A paradigm shift is here.
 
-The main benefit of iii is that it transforms a backend from behaving like a series of
-separate concerns, domains, and services into a single application-level interface across services.
+## iii in a Nutshell
 
-**iii** (pronounced "three eye") does this by creating a single integration point
-for all backend systems which results in a stack that is easier to change and which
-keeps all historical knowledge in one place (ie. a single config).
+iii collapses distributed backend design into three primitives: **Worker**, **Trigger**, **Function**. Something hosts work, something causes it, something does it. Every capability — queues, cron, streaming, sandboxing, observability, agents, business logic, devices, UIs — is built from these three things.
 
-The result is faster onboarding of new developers and AI agents, and simpler debugging across systems,
-removal of cost centers with reduced switching costs, and faster delivery of backend features.
+Every capability, every framework, and every tool become a pattern on the same core system.
 
-## What makes iii different
+### Execution Model
 
-iii's primitives produce an execution model and live system traits that together make it
-unreasonably good at creating backend software.
+| | |
+|---|---|
+| **Durable Orchestration** | Coordinate long-running, failure-tolerant execution across workers and triggers. |
+| **Interoperable Execution** | Execute across languages natively, as if it were one runtime. A TypeScript worker calls a Python worker the same way it calls another TypeScript worker. |
+| **Simple Primitives** | Collapse distributed backend design into a paradigm humans and agents can reason about. The primitives are small enough to hold in your head. |
 
-| | What it means |
-| --- | --- |
-| **Durable orchestration** | Coordinate long-running, failure-tolerant execution across workers and triggers. |
-| **Interoperable execution** | Execute across languages natively as if it were one runtime. |
-| **Simple primitives** | Collapse distributed backend design into a paradigm that humans and agents can reason about. |
-| **Live discovery** | Functions and triggers exposed by one worker become visible and usable across the system in real time. |
-| **Live extensibility** | Add new workers and capabilities to a live iii system without redesigning the architecture. |
-| **Live observability** | Observe operations, traces, and system behavior across the entire connected stack in real time. |
+### Live System Traits
 
-## How iii achieves this
+| | |
+|---|---|
+| **Live Discovery** | Functions and triggers exposed by one worker become visible across the system in real time. When a worker unregisters, they are gone. |
+| **Live Extensibility** | Add new workers and capabilities to a live iii system without redesigning the architecture. |
+| **Live Observability** | Observe operations, traces, and behavior across the entire connected stack in real time. No stale specs, no propagation delays, no disconnected log streams. |
 
-iii unifies any backend stack with a single engine and three primitives: **Function**, **Trigger**, and **Worker**.
+## Quadratic to Linear
 
-This results in the ability to:
+iii eliminates integration effort by reducing every new addition to zero. Adding 4 workers or 20 workers is exactly the same. A new worker joins by opening a single connection and becomes immediately available to every other worker the moment it registers. The architecture stops paying compound interest on complexity.
 
-- **Write Functions in any language:** Use TypeScript, Python, or Rust. Mix them freely. Everything is just a Function.
-- **Handle any event with Triggers:** A function call, an HTTP request, a cron schedule, a queue message, a state change, a stream event. They all work the same way: a Trigger fires, iii invokes your Function.
-- **Always stay in sync with Workers:** When a new function is registered with iii every other part of the stack can use it. Workers can dynamically unregister Functions too, allowing rolling upgrades without manual registry or config updates. No service registry needed — iii always knows what the entire system can do.
+## Have a Need? Add a Worker
 
-<Info title="Why this matters">
-  React simplified the frontend with Component and Context. iii does the same for the backend with Function, Trigger, and Worker.
-  One mental model for every backend system.
-</Info>
+Need a queue? Add a worker. Need real-time streaming, scheduling, sandboxing, observability, an agent, a CRM integration, a browser tab as a first-class participant? Add a worker. Some workers are deterministic code. Some are stochastic agents. Most real systems are a mix. The semantics live in the functions, not in the category.
+
+`iii worker add` is the npm moment for systems. What you install is not a library — it is a running participant. A queue worker. A sandbox worker. A classifier. One command, complete capability, immediately available to every other worker in the system.
+
+## Same Contract, Both Sides
+
+Application teams register functions and declare triggers, focused entirely on business logic. Platform teams publish workers, focused entirely on the capabilities they provide. Both sides fulfill the exact same contract. No bespoke SDKs, no internal client libraries, no per-service API contracts. The work that used to live between teams disappears.
+
+## Any Language, Any Runtime
+
+A worker in Docker, on Kubernetes, on the edge, in a browser tab, on a Raspberry Pi, or inside a hardware-isolated microVM is the same kind of worker. Moving a workload is a redeploy, not a rewrite. The engine handles serialization and routing.
+
+## Built for Agents
+
+Humans and agents share one mental model. A new engineer is productive on day one because their mental model never changes from one capability to the next. AI agents can reliably reason about an entire system in a single context window because there is one set of primitives to learn and one always-accurate source of truth for what exists.
+
+Agents are workers. An agent's tools are functions. Its memory is state. Its orchestration is triggers. An agent that hits a task outside its current capabilities can register a worker at runtime and use its functions immediately. This is the difference between scripted LLM calls and real autonomy.
+
+As agents do more of the work of building and operating software, small primitives compound: easier to onboard, cheaper to prompt, faster to extend, simpler to maintain.
 
 ## Getting Started
 
-The best way to understand iii is to try it. [Install iii](/install) and then follow the [Quickstart](/quickstart) to create your first iii powered project.
-
-## Next Steps
+The best way to understand iii is to try it. [Install iii](/install) and follow the [Quickstart](/quickstart) to create your first iii-powered project.
 
 <CardGroup cols={2}>
   <Card title="Install" href="/install" icon="download">
