@@ -1518,7 +1518,7 @@
     font-size:12px;
   }
   .xp-trace .head .label{
-    color:var(--ink-faint); letter-spacing:0.18em; text-transform:uppercase;
+    color:var(--ink-faint); letter-spacing:0.18em;
     display:inline-flex; align-items:center; gap:6px;
   }
   .xp-trace .head .label .pulse{
@@ -1844,6 +1844,16 @@
     border-top:1px solid var(--rule);
   }
   .xp-trace-actions:empty{ display:none; }
+  .xp-trace-actions .continue-link{
+    appearance:none; cursor:pointer;
+    border:1px solid var(--ink);
+    background:var(--ink); color:var(--bg);
+    padding:5px 12px;
+    font-family:'Chivo Mono', ui-monospace, monospace;
+    font-size:12px; letter-spacing:0.18em; text-transform:uppercase;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .xp-trace-actions .continue-link:hover{ background:var(--accent); border-color:var(--accent); color:var(--bg); }
   .xp-trace .trace-row.sel{ background: var(--panel); }
   .xp-trace.completed.err{ border-color: oklch(0.55 0.21 27); }
   .xp-trace.completed .completed-line{ color: var(--ink); }
@@ -6314,7 +6324,7 @@ iii.register_function(
     wrap.innerHTML = ''
       + '<div class="xp-trace">'
       +   '<div class="head">'
-      +     '<span class="label"><span class="pulse"></span>iii console</span>'
+      +     '<span class="label"><span class="pulse"></span>iii Console</span>'
       +     '<span class="phases">' + phasesHtml + '</span>'
       +   '</div>'
       +   '<div class="traces"></div>'
@@ -6421,7 +6431,7 @@ iii.register_function(
         stepStates[i].timers.push(t);
       } else {
         const btn = document.createElement('button');
-        btn.type = 'button'; btn.className = 'deploy';
+        btn.type = 'button'; btn.className = 'continue-link';
         btn.textContent = 'Continue';
         btn.addEventListener('click', advance);
         actEl.appendChild(btn);
