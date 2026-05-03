@@ -98,11 +98,35 @@
                 ]
               },
               {
-                "group": "Primitives & Concepts",
+                "group": "Explanation",
                 "pages": [
-                  "primitives-and-concepts/functions-triggers-workers",
-                  "primitives-and-concepts/trigger-actions",
-                  "primitives-and-concepts/discovery"
+                  {
+                    "group": "Concepts",
+                    "pages": [
+                      "primitives-and-concepts/functions-triggers-workers",
+                      "primitives-and-concepts/trigger-actions",
+                      "primitives-and-concepts/discovery"
+                    ]
+                  },
+                  {
+                    "group": "Architecture",
+                    "pages": [
+                      "architecture/index",
+                      "architecture/engine",
+                      "architecture/external-workers",
+                      "architecture/workers",
+                      "architecture/trigger-types",
+                      "architecture/channels",
+                      "architecture/queues"
+                    ]
+                  },
+                  {
+                    "group": "Advanced",
+                    "pages": [
+                      "advanced/architecture",
+                      "advanced/telemetry"
+                    ]
+                  }
                 ]
               },
               {
@@ -177,18 +201,6 @@
                 ]
               },
               {
-                "group": "Architecture",
-                "pages": [
-                  "architecture/index",
-                  "architecture/engine",
-                  "architecture/external-workers",
-                  "architecture/workers",
-                  "architecture/trigger-types",
-                  "architecture/channels",
-                  "architecture/queues"
-                ]
-              },
-              {
                 "group": "Workers",
                 "pages": [
                   "workers/index",
@@ -208,13 +220,6 @@
               {
                 "group": "Console",
                 "pages": ["console/index"]
-              },
-              {
-                "group": "Advanced",
-                "pages": [
-                  "advanced/architecture",
-                  "advanced/telemetry"
-                ]
               },
               {
                 "group": "Examples",
