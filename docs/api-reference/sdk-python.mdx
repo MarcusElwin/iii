@@ -36,7 +36,7 @@ from an async context.
 **Signature**
 
 ```python
-async ()
+async def connect_async() -> None
 ```
 
 ### create_channel
@@ -78,7 +78,7 @@ can be passed as fields in invocation data to other functions.
 **Signature**
 
 ```python
-async (buffer_size: int | None = None)
+async def create_channel_async(buffer_size: int | None = None) -> Channel
 ```
 
 #### Parameters
@@ -326,7 +326,7 @@ instance must not be reused.
 **Signature**
 
 ```python
-async ()
+async def shutdown_async() -> None
 ```
 
 #### Example
@@ -379,7 +379,7 @@ The routing behavior and return type depend on the ``action`` field:
 **Signature**
 
 ```python
-async (request: dict[str, Any] | TriggerRequest)
+async def trigger_async(request: dict[str, Any] | TriggerRequest) -> Any
 ```
 
 #### Parameters
