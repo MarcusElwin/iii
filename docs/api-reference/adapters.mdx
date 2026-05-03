@@ -1,11 +1,13 @@
 ---
-title: 'Adapters'
-description: 'Pluggable backends for iii workers — swap between in-memory, file-based, Redis, and RabbitMQ without changing your application code.'
+title: 'Adapters Reference'
+description: 'Configuration reference for pluggable backends — swap between in-memory, file-based, Redis, and RabbitMQ adapters.'
 ---
 
-Each iii worker that needs persistence or distribution uses an **adapter** — a pluggable backend that implements a fixed interface. Swap adapters in `iii-config.yaml` without touching application code.
+Each iii worker that needs persistence or distribution uses an **adapter** — a pluggable backend that implements a fixed interface. Configure adapters in `iii-config.yaml`.
 
-## Pattern
+For procedural guidance on selecting adapters for your deployment, see [Deploy Engine](/how-to/deploy-engine).
+
+## Configuration Pattern
 
 ```yaml
 workers:
@@ -17,13 +19,12 @@ workers:
           redis_url: ${REDIS_URL:redis://localhost:6379}
 ```
 
-Every adapter entry has two fields:
-- `name` — the adapter short name
-- `config` — adapter-specific config (omit if not needed)
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `string` | Adapter short name (e.g., `builtin`, `redis`, `rabbitmq`) |
+| `config` | `object` | Adapter-specific configuration (omit if not needed) |
 
-## Adapter Reference
-
-### Queue
+## Queue Adapters
 
 | Adapter | Name | External dependency |
 |---------|------|---------------------|
@@ -31,7 +32,7 @@ Every adapter entry has two fields:
 | Redis | `redis` | Redis |
 | RabbitMQ | `rabbitmq` | RabbitMQ |
 
-#### `builtin`
+### `builtin`
 
 Default. In-process only with retries and DLQ — does not share messages across engine instances.
 
@@ -40,7 +41,7 @@ adapter:
   name: builtin
 ```
 
-#### `redis`
+### `redis`
 
 ```yaml
 adapter:
@@ -49,7 +50,14 @@ adapter:
     redis_url: ${REDIS_URL:redis://localhost:6379}
 ```
 
-#### `rabbitmq`
+### `rabbitmq`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `amqp_url` | `string` | — | RabbitMQ connection URL |
+| `max_attempts` | `number` | `3` | Maximum retry attempts |
+| `prefetch_count` | `number` | `10` | Messages to prefetch per consumer |
+| `queue_mode` | `string` | `standard` | `standard` or `fifo` |
 
 ```yaml
 adapter:
@@ -58,16 +66,16 @@ adapter:
     amqp_url: ${RABBITMQ_URL:amqp://localhost:5672}
     max_attempts: 3
     prefetch_count: 10
-    queue_mode: standard   # standard | fifo
+    queue_mode: standard
 ```
 
 <Info>
-  For retry behavior, dead-letter queues, and full config reference, see the [Queue worker](/workers/iii-queue).
+  For retry behavior and dead-letter queue configuration, see the [Queue worker](/workers/iii-queue).
 </Info>
 
 ---
 
-### State
+## State Adapters
 
 | Adapter | Name | External dependency |
 |---------|------|---------------------|
@@ -75,20 +83,26 @@ adapter:
 | Redis | `redis` | Redis |
 | Bridge | `bridge` | Remote iii Engine |
 
-#### `kv`
+### `kv`
 
 Default. Supports in-memory or file-based persistence.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `store_method` | `string` | `in_memory` | `in_memory` or `file_based` |
+| `file_path` | `string` | — | Path to persistence file (required for `file_based`) |
+| `save_interval_ms` | `number` | `5000` | Write interval in milliseconds |
 
 ```yaml
 adapter:
   name: kv
   config:
-    store_method: file_based   # in_memory | file_based
+    store_method: file_based
     file_path: ./data/state
     save_interval_ms: 5000
 ```
 
-#### `redis`
+### `redis`
 
 ```yaml
 adapter:
@@ -97,7 +111,7 @@ adapter:
     redis_url: ${REDIS_URL:redis://localhost:6379}
 ```
 
-#### `bridge`
+### `bridge`
 
 Forwards state operations to a remote iii Engine.
 
@@ -108,27 +122,33 @@ adapter:
 
 ---
 
-### Stream
+## Stream Adapters
 
 | Adapter | Name | External dependency |
 |---------|------|---------------------|
 | KV Store | `kv` | None |
 | Redis | `redis` | Redis |
 
-#### `kv`
+### `kv`
 
 Default. In-process only.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `store_method` | `string` | `in_memory` | `in_memory` or `file_based` |
+| `file_path` | `string` | — | Path to persistence file |
+| `save_interval_ms` | `number` | `5000` | Write interval in milliseconds |
 
 ```yaml
 adapter:
   name: kv
   config:
-    store_method: file_based   # in_memory | file_based
+    store_method: file_based
     file_path: ./data/stream_store
     save_interval_ms: 5000
 ```
 
-#### `redis`
+### `redis`
 
 ```yaml
 adapter:
@@ -139,14 +159,14 @@ adapter:
 
 ---
 
-### Cron
+## Cron Adapters
 
 | Adapter | Name | External dependency |
 |---------|------|---------------------|
 | KV Cron | `kv` | None |
 | Redis Cron | `redis` | Redis |
 
-#### `kv`
+### `kv`
 
 Default. Process-local locks — jobs may run on every instance in multi-instance deployments.
 
@@ -155,7 +175,7 @@ adapter:
   name: kv
 ```
 
-#### `redis`
+### `redis`
 
 Distributed locking via Redis — ensures each job runs only once across all instances.
 
@@ -168,14 +188,14 @@ adapter:
 
 ---
 
-### PubSub
+## PubSub Adapters
 
 | Adapter | Name | External dependency |
 |---------|------|---------------------|
 | Local | `local` | None |
 | Redis | `redis` | Redis |
 
-#### `local`
+### `local`
 
 Default. In-process broadcast — subscribers must be in the same engine process.
 
@@ -184,7 +204,7 @@ adapter:
   name: local
 ```
 
-#### `redis`
+### `redis`
 
 ```yaml
 adapter:
@@ -195,18 +215,18 @@ adapter:
 
 ---
 
-## Choosing an Adapter
+## Adapter Selection Matrix
 
-| | Single instance | Multi-instance |
-|---|---|---|
-| **Queue** | BuiltinQueueAdapter | RedisAdapter or RabbitMQAdapter |
-| **State** | KvStore (file_based) | RedisAdapter |
-| **Stream** | KvStore | RedisAdapter |
-| **Cron** | KvCronAdapter | RedisCronAdapter |
-| **PubSub** | LocalAdapter | RedisAdapter |
+| Worker | Single instance | Multi-instance |
+|--------|-----------------|----------------|
+| Queue | `builtin` | `redis` or `rabbitmq` |
+| State | `kv` (file_based) | `redis` |
+| Stream | `kv` | `redis` |
+| Cron | `kv` | `redis` |
+| PubSub | `local` | `redis` |
 
 <Info title="Environment variables">
-  Use `${VAR:default}` syntax in `iii-config.yaml` to switch adapters per environment without changing the file:
+  Use `${VAR:default}` syntax in `iii-config.yaml` to switch adapters per environment:
 
   ```yaml
   redis_url: ${REDIS_URL:redis://localhost:6379}

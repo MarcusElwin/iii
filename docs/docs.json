@@ -176,9 +176,7 @@
               {
                 "group": "Advanced",
                 "pages": [
-                  "advanced/adapters",
                   "advanced/architecture",
-                  "advanced/protocol",
                   "advanced/telemetry"
                 ]
               },
@@ -214,7 +212,9 @@
               "group": "Engine",
               "pages": [
                 "api-reference/engine-config",
-                "api-reference/built-in-functions"
+                "api-reference/built-in-functions",
+                "api-reference/adapters",
+                "api-reference/protocol"
               ]
             }
             ]
