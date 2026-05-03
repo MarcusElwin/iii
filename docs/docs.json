@@ -67,6 +67,37 @@
                 "pages": ["index", "install", "quickstart"]
               },
               {
+                "group": "Tutorials",
+                "pages": [
+                  "tutorials/index",
+                  {
+                    "group": "Track 1 — Your first useful backend",
+                    "pages": [
+                      "tutorials/crud-api-in-10-minutes",
+                      "tutorials/add-image-uploads",
+                      "tutorials/scheduled-jobs-and-observability"
+                    ]
+                  },
+                  {
+                    "group": "Track 2 — Adopt iii incrementally",
+                    "pages": [
+                      "tutorials/bridge-existing-api",
+                      "tutorials/background-jobs-without-a-runner",
+                      "tutorials/realtime-dashboard"
+                    ]
+                  },
+                  {
+                    "group": "Track 3 — iii for AI agents",
+                    "pages": [
+                      "tutorials/expose-functions-as-mcp-tools",
+                      "tutorials/build-a-tool-using-agent",
+                      "tutorials/ai-driven-browser-tests",
+                      "tutorials/durable-agent-memory"
+                    ]
+                  }
+                ]
+              },
+              {
                 "group": "Primitives & Concepts",
                 "pages": [
                   "primitives-and-concepts/functions-triggers-workers",
