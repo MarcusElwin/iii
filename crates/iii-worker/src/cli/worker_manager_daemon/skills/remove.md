@@ -4,7 +4,7 @@ Remove a worker's entry from `iii.config.yaml`. The engine's file watcher tears 
 
 - id: `worker::remove`
 - timeout: 30s
-- idempotent: yes
+- idempotent: yes (second call returns empty `removed` list)
 - request: `RemoveOptions { names: [], all?, yes }`
 - response: `RemoveOutcome { removed: [string] }`
 

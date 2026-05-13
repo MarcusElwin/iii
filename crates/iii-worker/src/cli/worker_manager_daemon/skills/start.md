@@ -4,7 +4,7 @@ Spawn a worker that's already in `iii.config.yaml`. The engine connects to the p
 
 - id: `worker::start`
 - timeout: 60s
-- idempotent: no (stateful — starting an already-running worker is a no-op or error depending on health)
+- idempotent: no (stateful — starting an already-running worker is a no-op; starting an unknown worker returns **W110**)
 - request: `StartOptions { name, port?, config?, wait? }`
 - response: `StartOutcome { name, pid?, port? }`
 

@@ -26,6 +26,17 @@ Install from the iii registry or an OCI image. Writes the entry to `iii.config.y
 }
 ```
 
+Response:
+```json
+{
+  "name": "image-resize",
+  "version": "0.1.2",
+  "status": "installed",
+  "awaited_ready": true,
+  "config_path": "/Users/you/.iii/managed/image-resize/iii.config.yaml"
+}
+```
+
 ## Errors
 
 - **W101** missing/malformed `source`.

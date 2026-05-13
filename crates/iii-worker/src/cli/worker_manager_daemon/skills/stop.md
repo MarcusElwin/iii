@@ -4,7 +4,7 @@ Send a graceful shutdown signal. Destructive — requires explicit `yes: true` c
 
 - id: `worker::stop`
 - timeout: 30s
-- idempotent: no (stateful)
+- idempotent: no (stateful — already-stopped workers return success; unknown names return **W110**)
 - request: `StopOptions { name, yes }`
 - response: `StopOutcome { name, stopped }`
 
