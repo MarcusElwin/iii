@@ -2,7 +2,7 @@ import { createServer, type IncomingHttpHeaders } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { describe, expect, it } from 'vitest'
 import { EngineFunctions } from '../src/iii-constants'
-import type { FunctionInfo } from '../src/iii-types'
+import type { FunctionInfo, WorkerInfo } from '../src/iii-types'
 import { execute, iii, sleep } from './utils'
 
 type CapturedWebhook = {
@@ -131,6 +131,98 @@ function uniqueTopic(prefix: string): string {
 }
 
 describe('HTTP external functions', () => {
+  it('exposes generated HTTP functions as a normal engine worker group', async () => {
+    await execute(async () =>
+      iii.trigger<Record<string, never>, { functions: FunctionInfo[] }>({
+        function_id: EngineFunctions.LIST_FUNCTIONS,
+        payload: {},
+      }),
+    )
+
+    const webhookProbe = new WebhookProbe()
+    await webhookProbe.start()
+
+    const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+    const workerName = `generated-node-${suffix}`
+    const functionId = `generated_node_${suffix}::search`
+    const payload = { query: 'hooks', limit: 3 }
+    let httpFn: { unregister(): void } | undefined
+
+    try {
+      httpFn = iii.registerFunction(
+        functionId,
+        {
+          url: webhookProbe.url('/generated'),
+          method: 'POST',
+          timeout_ms: 3000,
+        },
+        {
+          description: 'Generated OpenAPI search function',
+          metadata: {
+            spec: {
+              schema: 'spec-to-worker.http-invocation.v1',
+              sourceType: 'openapi',
+              source: 'https://example.test/openapi.json',
+              workerName,
+            },
+            iii: { virtualWorker: { name: workerName } },
+          },
+        },
+      )
+      await sleep(300)
+
+      const result = await execute(async () =>
+        iii.trigger<typeof payload, { ok: boolean }>({
+          function_id: functionId,
+          payload,
+        }),
+      )
+      const webhook = await webhookProbe.waitForWebhook(7000)
+
+      expect(result).toEqual({ ok: true })
+      expect(webhook.method).toBe('POST')
+      expect(webhook.url).toBe('/generated')
+      expect(webhook.body).toMatchObject(payload)
+
+      const workersResult = await execute(async () =>
+        iii.trigger<Record<string, never>, { workers: WorkerInfo[] }>({
+          function_id: EngineFunctions.LIST_WORKERS,
+          payload: {},
+        }),
+      )
+      const worker = workersResult.workers.find(w => w.id === workerName)
+      expect(worker).toBeDefined()
+      expect(worker?.name).toBe(workerName)
+      expect(worker?.runtime).toBe('engine')
+      expect(worker?.function_count).toBe(1)
+      expect(worker?.functions).toContain(functionId)
+
+      const workerPublicShape = worker as unknown as Record<string, unknown>
+      expect(workerPublicShape.internal).toBe(false)
+      expect(workerPublicShape.virtual_worker).toBeUndefined()
+      expect(workerPublicShape.virtualWorker).toBeUndefined()
+      expect(workerPublicShape.isolation).toBeUndefined()
+
+      const functionsResult = await execute(async () =>
+        iii.trigger<Record<string, boolean>, { functions: FunctionInfo[] }>({
+          function_id: EngineFunctions.LIST_FUNCTIONS,
+          payload: { include_internal: true },
+        }),
+      )
+      const registered = functionsResult.functions.find(f => f.function_id === functionId)
+      expect(registered?.metadata).toMatchObject({
+        spec: {
+          sourceType: 'openapi',
+          workerName,
+        },
+      })
+      expect((registered?.metadata as Record<string, unknown> | undefined)?.iii).toBeUndefined()
+    } finally {
+      httpFn?.unregister()
+      await webhookProbe.close()
+    }
+  })
+
   it('delivers queue events to an externally registered HTTP function', async () => {
     await execute(async () =>
       iii.trigger<Record<string, never>, { functions: FunctionInfo[] }>({
