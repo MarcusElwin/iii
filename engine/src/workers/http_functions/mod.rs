@@ -125,7 +125,13 @@ impl HttpFunctionsWorker {
     }
 
     pub async fn unregister_http_function(&self, function_path: &str) -> Result<(), ErrorBody> {
-        self.http_functions.remove(function_path);
+        if self.http_functions.remove(function_path).is_none() {
+            return Err(ErrorBody {
+                code: "function_not_found".to_string(),
+                message: format!("HTTP function {function_path} not found"),
+                stacktrace: None,
+            });
+        }
         self.engine.functions.remove(function_path);
         Ok(())
     }

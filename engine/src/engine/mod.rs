@@ -1101,7 +1101,6 @@ impl Engine {
                         );
                         return Ok(());
                     }
-                    self.generated_workers.remove_function(&resolved_id);
                     if let Some(http_module) = self
                         .service_registry
                         .get_service::<HttpFunctionsWorker>("http_functions")
@@ -1121,8 +1120,10 @@ impl Engine {
                                     error = ?err,
                                     "Failed to unregister external function"
                                 );
+                                self.remove_function(&resolved_id);
                             }
                         }
+                        self.generated_workers.remove_function(&resolved_id);
                         self.service_registry
                             .remove_function_from_services(&resolved_id);
                     } else {
@@ -1317,12 +1318,7 @@ impl Engine {
                     Box::new(worker.clone()),
                 );
 
-                if let Some(worker_name) = generated_worker_name {
-                    self.generated_workers
-                        .claim_function(worker_name, worker.id, true, &reg_id);
-                } else {
-                    self.generated_workers.remove_function(&reg_id);
-                }
+                self.generated_workers.remove_function(&reg_id);
                 worker.include_function_id(&reg_id).await;
                 Ok(())
             }
@@ -2624,6 +2620,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_regular_function_generated_worker_metadata_is_ignored() {
+        ensure_default_meter();
+        let engine = Arc::new(Engine::new());
+        let (tx, _rx) = mpsc::channel::<Outbound>(8);
+        let worker = WorkerConnection::with_session(
+            tx,
+            crate::workers::worker::rbac_session::Session {
+                engine: engine.clone(),
+                config: Arc::new(crate::workers::worker::WorkerManagerConfig::default()),
+                ip_address: "127.0.0.1".to_string(),
+                session_id: uuid::Uuid::new_v4(),
+                allowed_functions: vec![],
+                forbidden_functions: vec![],
+                allowed_trigger_types: None,
+                allow_function_registration: true,
+                allow_trigger_type_registration: true,
+                trusted_internal: true,
+                context: json!({}),
+                function_registration_prefix: None,
+            },
+        );
+        let register_msg = Message::RegisterFunction {
+            id: "hackernews::regular".to_string(),
+            description: Some("regular function".to_string()),
+            request_format: None,
+            response_format: None,
+            metadata: Some(json!({
+                "spec": { "source": "https://example.com/openapi.json" },
+                "iii": { "generatedWorker": { "name": "hackernews" } }
+            })),
+            invocation: None,
+        };
+
+        engine
+            .router_msg(&worker, &register_msg)
+            .await
+            .expect("register regular function should succeed");
+
+        assert!(engine.generated_workers.get("hackernews").is_none());
+        let function = engine
+            .functions
+            .get("hackernews::regular")
+            .expect("function should be visible as a normal function");
+        assert_eq!(
+            function.metadata,
+            Some(json!({ "spec": { "source": "https://example.com/openapi.json" } }))
+        );
+    }
+
+    #[tokio::test]
     async fn test_router_msg_invoke_result() {
         ensure_default_meter();
         let engine = Engine::new();
@@ -3311,6 +3357,63 @@ mod tests {
 
         assert!(engine.functions.get("external::cleanup").is_none());
         assert!(!worker.has_external_function_id("external::cleanup").await);
+        assert!(!engine.service_registry.services.contains_key("external"));
+    }
+
+    #[tokio::test]
+    async fn test_router_msg_unregister_external_missing_http_config_removes_function() {
+        ensure_default_meter();
+        let engine = Arc::new(Engine::new());
+
+        let http_functions_config = HttpFunctionsConfig {
+            security: SecurityConfig {
+                require_https: false,
+                block_private_ips: false,
+                url_allowlist: vec!["*".to_string()],
+            },
+        };
+        let http_functions_module = HttpFunctionsWorker::create(
+            engine.clone(),
+            Some(serde_json::to_value(&http_functions_config).expect("serialize config")),
+        )
+        .await
+        .expect("create module");
+        http_functions_module
+            .initialize()
+            .await
+            .expect("initialize module");
+
+        let (tx, _rx) = mpsc::channel::<Outbound>(8);
+        let worker = WorkerConnection::new(tx);
+        engine.register_function_handler(
+            make_request("external::missing_config"),
+            super::Handler::new(|_input| async move { FunctionResult::Success(None) }),
+        );
+        engine
+            .service_registry
+            .register_service_from_function_id("external::missing_config");
+        worker
+            .include_external_function_id("external::missing_config")
+            .await;
+        let _ =
+            engine.claim_external_function_for_registration(worker.id, "external::missing_config");
+
+        engine
+            .router_msg(
+                &worker,
+                &Message::UnregisterFunction {
+                    id: "external::missing_config".to_string(),
+                },
+            )
+            .await
+            .expect("unregister should succeed");
+
+        assert!(engine.functions.get("external::missing_config").is_none());
+        assert!(
+            !worker
+                .has_external_function_id("external::missing_config")
+                .await
+        );
         assert!(!engine.service_registry.services.contains_key("external"));
     }
 
