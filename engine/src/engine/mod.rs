@@ -4,7 +4,10 @@
 // This software is patent protected. We welcome discussions - reach out at team@iii.dev
 // See LICENSE and PATENTS files for details.
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
 
 use axum::{
     extract::ws::{Message as WsMessage, WebSocket},
@@ -280,6 +283,15 @@ fn is_loopback_http_url(value: &str) -> bool {
     })
 }
 
+fn is_trusted_bridge_session(session: &Session) -> bool {
+    session.trusted_internal
+        || session.ip_address.eq_ignore_ascii_case("localhost")
+        || session
+            .ip_address
+            .parse::<IpAddr>()
+            .is_ok_and(|ip| ip.is_loopback())
+}
+
 fn trusted_virtual_worker_name(
     worker: &WorkerConnection,
     metadata: &mut Option<Value>,
@@ -288,7 +300,7 @@ fn trusted_virtual_worker_name(
     worker
         .session
         .as_ref()
-        .is_some_and(|session| session.trusted_internal)
+        .is_some_and(|session| is_trusted_bridge_session(session))
         .then_some(name)
 }
 
@@ -2412,6 +2424,91 @@ mod tests {
             .expect("unregister external function should succeed");
 
         assert!(!engine.virtual_workers.contains_worker("hackernews"));
+    }
+
+    #[tokio::test]
+    async fn test_local_external_function_virtual_worker_bridge_is_internal() {
+        ensure_default_meter();
+        let engine = Arc::new(Engine::new());
+
+        let http_functions_config = HttpFunctionsConfig {
+            security: SecurityConfig {
+                require_https: false,
+                block_private_ips: false,
+                url_allowlist: vec!["*".to_string()],
+            },
+        };
+        let http_functions_module = HttpFunctionsWorker::create(
+            engine.clone(),
+            Some(serde_json::to_value(&http_functions_config).expect("serialize config")),
+        )
+        .await
+        .expect("create module");
+        http_functions_module
+            .initialize()
+            .await
+            .expect("initialize module");
+
+        let (tx, _rx) = mpsc::channel::<Outbound>(8);
+        let worker = WorkerConnection::with_session(
+            tx,
+            crate::workers::worker::rbac_session::Session {
+                engine: engine.clone(),
+                config: Arc::new(crate::workers::worker::WorkerManagerConfig::default()),
+                ip_address: "127.0.0.1".to_string(),
+                session_id: uuid::Uuid::new_v4(),
+                allowed_functions: vec![],
+                forbidden_functions: vec![],
+                allowed_trigger_types: None,
+                allow_function_registration: true,
+                allow_trigger_type_registration: true,
+                trusted_internal: false,
+                context: json!({}),
+                function_registration_prefix: None,
+            },
+        );
+        let register_msg = Message::RegisterFunction {
+            id: "local_api::echo".to_string(),
+            description: Some("echo".to_string()),
+            request_format: None,
+            response_format: None,
+            metadata: Some(json!({
+                "spec": { "source": "http://127.0.0.1/openapi.json" },
+                "iii": { "virtualWorker": { "name": "local-api" } }
+            })),
+            invocation: Some(HttpInvocationRef {
+                url: "http://127.0.0.1/local-api/echo".to_string(),
+                method: crate::invocation::method::HttpMethod::Post,
+                timeout_ms: Some(30000),
+                headers: HashMap::new(),
+                auth: None,
+            }),
+        };
+
+        engine
+            .router_msg(&worker, &register_msg)
+            .await
+            .expect("register external function should succeed");
+
+        let virtual_worker = engine
+            .virtual_workers
+            .get("local-api")
+            .expect("virtual worker should be tracked internally");
+        assert_eq!(virtual_worker.name, "local-api");
+        assert!(virtual_worker.trusted_internal);
+        assert!(virtual_worker.function_ids.contains("local_api::echo"));
+
+        let http_module = engine
+            .service_registry
+            .get_service::<HttpFunctionsWorker>("http_functions")
+            .expect("http_functions service registered");
+        assert!(
+            http_module
+                .http_functions()
+                .get("local_api::echo")
+                .expect("http function config should exist")
+                .trusted_internal
+        );
     }
 
     #[tokio::test]
