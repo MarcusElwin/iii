@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TracesFilterParams } from '@/api'
 import type { GroupByOption } from '@/lib/groupTraces'
+import { buildFilterParams, countActiveFilters } from '@/lib/traceFilters'
 
 export interface TraceFilterState {
   serviceName?: string
@@ -125,65 +126,13 @@ export function useTraceFilters() {
     if (operationNameTimerRef.current) clearTimeout(operationNameTimerRef.current)
   }, [])
 
-  const getActiveFilterCount = useCallback(() => {
-    let count = 0
-    if (filters.serviceName) count++
-    if (filters.operationName) count++
-    if (filters.status != null) count++
-    if (filters.minDurationMs !== null) count++
-    if (filters.maxDurationMs !== null) count++
-    if (filters.startTime !== null) count++
-    if (filters.endTime !== null) count++
-    if (filters.attributes && filters.attributes.length > 0) count++
-    if (filters.sortBy !== 'start_time') count++
-    if (filters.sortOrder !== 'desc') count++
-    return count
-  }, [filters])
+  const getActiveFilterCount = useCallback(() => countActiveFilters(filters), [filters])
 
-  // Filter-only params (excludes pagination) -- stable reference when only page changes
+  // Filter-only params (excludes pagination) -- stable reference when only page changes.
+  // Delegation to `buildFilterParams` keeps the swap-validation logic
+  // pure and testable (see lib/traceFilters.test.ts).
   const { filterOnlyParams, computedWarnings } = useMemo(() => {
-    const params: TracesFilterParams = {}
-    const warnings: { durationSwapped?: boolean; timeRangeSwapped?: boolean } = {}
-
-    if (filters.serviceName) params.service_name = filters.serviceName
-    if (filters.operationName) {
-      params.name = filters.operationName
-      params.search_all_spans = true
-    }
-    if (filters.status != null) params.status = filters.status
-
-    if (filters.minDurationMs != null && filters.maxDurationMs != null) {
-      if (filters.minDurationMs > filters.maxDurationMs) {
-        params.min_duration_ms = filters.maxDurationMs
-        params.max_duration_ms = filters.minDurationMs
-        warnings.durationSwapped = true
-      } else {
-        params.min_duration_ms = filters.minDurationMs
-        params.max_duration_ms = filters.maxDurationMs
-      }
-    } else {
-      if (filters.minDurationMs != null) params.min_duration_ms = filters.minDurationMs
-      if (filters.maxDurationMs != null) params.max_duration_ms = filters.maxDurationMs
-    }
-
-    if (filters.startTime != null && filters.endTime != null) {
-      if (filters.startTime > filters.endTime) {
-        params.start_time = filters.endTime
-        params.end_time = filters.startTime
-        warnings.timeRangeSwapped = true
-      } else {
-        params.start_time = filters.startTime
-        params.end_time = filters.endTime
-      }
-    } else {
-      if (filters.startTime != null) params.start_time = filters.startTime
-      if (filters.endTime != null) params.end_time = filters.endTime
-    }
-
-    if (filters.attributes && filters.attributes.length > 0) params.attributes = filters.attributes
-    if (filters.sortBy) params.sort_by = filters.sortBy
-    if (filters.sortOrder) params.sort_order = filters.sortOrder
-
+    const { params, warnings } = buildFilterParams(filters)
     return { filterOnlyParams: params, computedWarnings: warnings }
   }, [
     filters.serviceName,
