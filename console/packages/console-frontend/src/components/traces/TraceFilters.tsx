@@ -1,5 +1,3 @@
-'use client'
-
 import {
   AlertTriangle,
   ArrowUpDown,
@@ -404,7 +402,7 @@ export function TraceFilters({
             value={searchQuery}
             onChange={(e) => onSearchChange?.(e.target.value)}
             placeholder="Search traces..."
-            className="w-44 pl-7 pr-7 py-1 bg-[#0A0A0A] border border-[#1D1D1D] rounded-md text-[11px] text-foreground placeholder-[#5B5B5B] focus:outline-none focus:border-yellow/50 transition-colors"
+            className="w-44 pl-7 pr-7 py-1 bg-sidebar border border-border-subtle rounded-md text-[11px] text-foreground placeholder-muted focus:outline-none focus:border-yellow/50 transition-colors"
           />
           {searchQuery && (
             <button
@@ -417,7 +415,7 @@ export function TraceFilters({
           )}
         </div>
 
-        <div className="w-px h-5 bg-[#1D1D1D]" />
+        <div className="w-px h-5 bg-border-subtle" />
 
         {/* Status */}
         <div ref={statusRef} className="relative">
@@ -427,14 +425,14 @@ export function TraceFilters({
             className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-md transition-colors ${
               filters.status
                 ? 'bg-yellow/10 border border-yellow/30 text-yellow'
-                : 'bg-[#141414] border border-[#1D1D1D] text-muted hover:border-[#2D2D2D] hover:text-foreground'
+                : 'bg-elevated border border-border-subtle text-muted hover:border-border hover:text-foreground'
             }`}
           >
             <CircleDot className="w-3 h-3" />
             Status
           </button>
           {openPopover === 'status' && (
-            <div className="absolute top-full mt-1 left-0 bg-[#141414] border border-[#1D1D1D] rounded-md shadow-lg z-20 min-w-[100px]">
+            <div className="absolute top-full mt-1 left-0 bg-elevated border border-border-subtle rounded-md shadow-lg z-20 min-w-[100px]">
               {statusOptions.map((option) => (
                 <button
                   key={option.label}
@@ -442,7 +440,7 @@ export function TraceFilters({
                   onClick={() =>
                     handleStatusChange(option.value as 'ok' | 'error' | 'unset' | null)
                   }
-                  className="w-full px-3 py-1.5 text-left text-[11px] text-muted hover:bg-[#1A1A1A] hover:text-foreground first:rounded-t-md last:rounded-b-md transition-colors"
+                  className="w-full px-3 py-1.5 text-left text-[11px] text-muted hover:bg-hover hover:text-foreground first:rounded-t-md last:rounded-b-md transition-colors"
                 >
                   {option.label}
                 </button>
@@ -459,20 +457,20 @@ export function TraceFilters({
             className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-md transition-colors ${
               filters.startTime && filters.endTime
                 ? 'bg-yellow/10 border border-yellow/30 text-yellow'
-                : 'bg-[#141414] border border-[#1D1D1D] text-muted hover:border-[#2D2D2D] hover:text-foreground'
+                : 'bg-elevated border border-border-subtle text-muted hover:border-border hover:text-foreground'
             }`}
           >
             <Clock className="w-3 h-3" />
             Time Range
           </button>
           {openPopover === 'timeRange' && (
-            <div className="absolute top-full mt-1 left-0 bg-[#141414] border border-[#1D1D1D] rounded-md shadow-lg z-20 min-w-[110px]">
+            <div className="absolute top-full mt-1 left-0 bg-elevated border border-border-subtle rounded-md shadow-lg z-20 min-w-[110px]">
               {timeRangePresets.map((preset) => (
                 <button
                   key={preset.label}
                   type="button"
                   onClick={() => handleTimeRangeChange(preset.value)}
-                  className="w-full px-3 py-1.5 text-left text-[11px] text-muted hover:bg-[#1A1A1A] hover:text-foreground first:rounded-t-md last:rounded-b-md transition-colors"
+                  className="w-full px-3 py-1.5 text-left text-[11px] text-muted hover:bg-hover hover:text-foreground first:rounded-t-md last:rounded-b-md transition-colors"
                 >
                   {preset.label}
                 </button>
@@ -489,14 +487,14 @@ export function TraceFilters({
             className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-md transition-colors ${
               filters.minDurationMs || filters.maxDurationMs
                 ? 'bg-yellow/10 border border-yellow/30 text-yellow'
-                : 'bg-[#141414] border border-[#1D1D1D] text-muted hover:border-[#2D2D2D] hover:text-foreground'
+                : 'bg-elevated border border-border-subtle text-muted hover:border-border hover:text-foreground'
             }`}
           >
             <Timer className="w-3 h-3" />
             Duration
           </button>
           {openPopover === 'duration' && (
-            <div className="absolute top-full mt-1 left-0 bg-[#141414] border border-[#1D1D1D] rounded-md shadow-lg z-20 p-3 min-w-[200px]">
+            <div className="absolute top-full mt-1 left-0 bg-elevated border border-border-subtle rounded-md shadow-lg z-20 p-3 min-w-[200px]">
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -506,7 +504,7 @@ export function TraceFilters({
                     dispatchTempInputs({ type: 'SET_MIN_DURATION', payload: e.target.value })
                   }
                   onKeyDown={(e) => handleKeyDown(e, handleDurationApply)}
-                  className="w-20 px-2 py-1 bg-[#0A0A0A] border border-[#1D1D1D] rounded text-[11px] text-foreground placeholder-[#5B5B5B] focus:outline-none focus:border-yellow transition-colors"
+                  className="w-20 px-2 py-1 bg-sidebar border border-border-subtle rounded text-[11px] text-foreground placeholder-muted focus:outline-none focus:border-yellow transition-colors"
                 />
                 <span className="text-[11px] text-muted">-</span>
                 <input
@@ -517,7 +515,7 @@ export function TraceFilters({
                     dispatchTempInputs({ type: 'SET_MAX_DURATION', payload: e.target.value })
                   }
                   onKeyDown={(e) => handleKeyDown(e, handleDurationApply)}
-                  className="w-20 px-2 py-1 bg-[#0A0A0A] border border-[#1D1D1D] rounded text-[11px] text-foreground placeholder-[#5B5B5B] focus:outline-none focus:border-yellow transition-colors"
+                  className="w-20 px-2 py-1 bg-sidebar border border-border-subtle rounded text-[11px] text-foreground placeholder-muted focus:outline-none focus:border-yellow transition-colors"
                 />
                 <span className="text-[11px] text-muted">ms</span>
               </div>
@@ -540,14 +538,14 @@ export function TraceFilters({
             className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-md transition-colors ${
               filters.serviceName
                 ? 'bg-yellow/10 border border-yellow/30 text-yellow'
-                : 'bg-[#141414] border border-[#1D1D1D] text-muted hover:border-[#2D2D2D] hover:text-foreground'
+                : 'bg-elevated border border-border-subtle text-muted hover:border-border hover:text-foreground'
             }`}
           >
             <Server className="w-3 h-3" />
             Service
           </button>
           {openPopover === 'service' && (
-            <div className="absolute top-full mt-1 left-0 bg-[#141414] border border-[#1D1D1D] rounded-md shadow-lg z-20 p-3 min-w-[220px]">
+            <div className="absolute top-full mt-1 left-0 bg-elevated border border-border-subtle rounded-md shadow-lg z-20 p-3 min-w-[220px]">
               <input
                 type="text"
                 placeholder="e.g., api-*, backend"
@@ -556,7 +554,7 @@ export function TraceFilters({
                   dispatchTempInputs({ type: 'SET_SERVICE_NAME', payload: e.target.value })
                 }
                 onKeyDown={(e) => handleKeyDown(e, handleServiceApply)}
-                className="w-full px-2 py-1.5 bg-[#0A0A0A] border border-[#1D1D1D] rounded text-[11px] text-foreground placeholder-[#5B5B5B] focus:outline-none focus:border-yellow transition-colors"
+                className="w-full px-2 py-1.5 bg-sidebar border border-border-subtle rounded text-[11px] text-foreground placeholder-muted focus:outline-none focus:border-yellow transition-colors"
               />
               <button
                 type="button"
@@ -577,14 +575,14 @@ export function TraceFilters({
             className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-md transition-colors ${
               filters.operationName
                 ? 'bg-yellow/10 border border-yellow/30 text-yellow'
-                : 'bg-[#141414] border border-[#1D1D1D] text-muted hover:border-[#2D2D2D] hover:text-foreground'
+                : 'bg-elevated border border-border-subtle text-muted hover:border-border hover:text-foreground'
             }`}
           >
             <Workflow className="w-3 h-3" />
             Operation
           </button>
           {openPopover === 'operation' && (
-            <div className="absolute top-full mt-1 left-0 bg-[#141414] border border-[#1D1D1D] rounded-md shadow-lg z-20 p-3 min-w-[220px]">
+            <div className="absolute top-full mt-1 left-0 bg-elevated border border-border-subtle rounded-md shadow-lg z-20 p-3 min-w-[220px]">
               <input
                 type="text"
                 placeholder="e.g., GET *, POST /api/*"
@@ -593,7 +591,7 @@ export function TraceFilters({
                   dispatchTempInputs({ type: 'SET_OPERATION_NAME', payload: e.target.value })
                 }
                 onKeyDown={(e) => handleKeyDown(e, handleOperationApply)}
-                className="w-full px-2 py-1.5 bg-[#0A0A0A] border border-[#1D1D1D] rounded text-[11px] text-foreground placeholder-[#5B5B5B] focus:outline-none focus:border-yellow transition-colors"
+                className="w-full px-2 py-1.5 bg-sidebar border border-border-subtle rounded text-[11px] text-foreground placeholder-muted focus:outline-none focus:border-yellow transition-colors"
               />
               <button
                 type="button"
@@ -614,15 +612,15 @@ export function TraceFilters({
             className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-md transition-colors ${
               filters.sortBy !== 'start_time' || filters.sortOrder !== 'desc'
                 ? 'bg-yellow/10 border border-yellow/30 text-yellow'
-                : 'bg-[#141414] border border-[#1D1D1D] text-muted hover:border-[#2D2D2D] hover:text-foreground'
+                : 'bg-elevated border border-border-subtle text-muted hover:border-border hover:text-foreground'
             }`}
           >
             <ArrowUpDown className="w-3 h-3" />
             {getSortLabel()} · {filters.sortOrder === 'asc' ? 'Asc' : 'Desc'}
           </button>
           {openPopover === 'sort' && (
-            <div className="absolute top-full mt-1 left-0 bg-[#141414] border border-[#1D1D1D] rounded-md shadow-lg z-20 min-w-[140px]">
-              <div className="px-3 py-1.5 text-[10px] text-[#5B5B5B] uppercase tracking-wider">
+            <div className="absolute top-full mt-1 left-0 bg-elevated border border-border-subtle rounded-md shadow-lg z-20 min-w-[140px]">
+              <div className="px-3 py-1.5 text-[10px] text-muted uppercase tracking-wider">
                 Sort by
               </div>
               {sortByOptions.map((option) => (
@@ -632,7 +630,7 @@ export function TraceFilters({
                   onClick={() =>
                     handleSortChange(option.value as 'start_time' | 'duration' | 'service_name')
                   }
-                  className={`w-full px-3 py-1.5 text-left text-[11px] hover:bg-[#1A1A1A] transition-colors ${
+                  className={`w-full px-3 py-1.5 text-left text-[11px] hover:bg-hover transition-colors ${
                     filters.sortBy === option.value
                       ? 'text-yellow'
                       : 'text-muted hover:text-foreground'
@@ -641,8 +639,8 @@ export function TraceFilters({
                   {option.label}
                 </button>
               ))}
-              <div className="border-t border-[#1D1D1D] my-1" />
-              <div className="px-3 py-1.5 text-[10px] text-[#5B5B5B] uppercase tracking-wider">
+              <div className="border-t border-border-subtle my-1" />
+              <div className="px-3 py-1.5 text-[10px] text-muted uppercase tracking-wider">
                 Order
               </div>
               <button
@@ -651,7 +649,7 @@ export function TraceFilters({
                   onFilterChange('sortOrder', 'asc')
                   setOpenPopover(null)
                 }}
-                className={`w-full px-3 py-1.5 text-left text-[11px] hover:bg-[#1A1A1A] transition-colors ${
+                className={`w-full px-3 py-1.5 text-left text-[11px] hover:bg-hover transition-colors ${
                   filters.sortOrder === 'asc' ? 'text-yellow' : 'text-muted hover:text-foreground'
                 }`}
               >
@@ -663,7 +661,7 @@ export function TraceFilters({
                   onFilterChange('sortOrder', 'desc')
                   setOpenPopover(null)
                 }}
-                className={`w-full px-3 py-1.5 text-left text-[11px] hover:bg-[#1A1A1A] last:rounded-b-md transition-colors ${
+                className={`w-full px-3 py-1.5 text-left text-[11px] hover:bg-hover last:rounded-b-md transition-colors ${
                   filters.sortOrder === 'desc' ? 'text-yellow' : 'text-muted hover:text-foreground'
                 }`}
               >
@@ -681,7 +679,7 @@ export function TraceFilters({
             className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-md transition-colors ${
               filters.groupBy && filters.groupBy !== 'none'
                 ? 'bg-yellow/10 border border-yellow/30 text-yellow'
-                : 'bg-[#141414] border border-[#1D1D1D] text-muted hover:border-[#2D2D2D] hover:text-foreground'
+                : 'bg-elevated border border-border-subtle text-muted hover:border-border hover:text-foreground'
             }`}
             title="Group spans by an attribute value (server-side aggregation)"
           >
@@ -689,7 +687,7 @@ export function TraceFilters({
             {groupByLabel(filters.groupBy ?? 'none')}
           </button>
           {openPopover === 'groupBy' && (
-            <div className="absolute top-full mt-1 left-0 bg-[#141414] border border-[#1D1D1D] rounded-md shadow-lg z-20 min-w-[180px]">
+            <div className="absolute top-full mt-1 left-0 bg-elevated border border-border-subtle rounded-md shadow-lg z-20 min-w-[180px]">
               {groupByOptions.map((option) => (
                 <button
                   key={option.value}
@@ -698,7 +696,7 @@ export function TraceFilters({
                     onFilterChange('groupBy', option.value)
                     setOpenPopover(null)
                   }}
-                  className={`w-full px-3 py-1.5 text-left text-[11px] hover:bg-[#1A1A1A] transition-colors first:rounded-t-md last:rounded-b-md ${
+                  className={`w-full px-3 py-1.5 text-left text-[11px] hover:bg-hover transition-colors first:rounded-t-md last:rounded-b-md ${
                     (filters.groupBy ?? 'none') === option.value
                       ? 'text-yellow'
                       : 'text-muted hover:text-foreground'
@@ -718,7 +716,7 @@ export function TraceFilters({
           className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-md transition-colors ${
             filters.attributes && filters.attributes.length > 0
               ? 'bg-yellow/10 border border-yellow/30 text-yellow'
-              : 'bg-[#141414] border border-[#1D1D1D] text-muted hover:border-[#2D2D2D] hover:text-foreground'
+              : 'bg-elevated border border-border-subtle text-muted hover:border-border hover:text-foreground'
           }`}
         >
           <Tags className="w-3 h-3" />
@@ -750,7 +748,7 @@ export function TraceFilters({
 
       {/* Attributes Panel (Expandable) */}
       {showAttributesPanel && (
-        <div className="p-4 bg-[#141414] border border-[#1D1D1D] rounded-lg">
+        <div className="p-4 bg-elevated border border-border-subtle rounded-lg">
           <AttributesFilter value={filters.attributes || []} onChange={handleAttributesChange} />
         </div>
       )}
@@ -764,7 +762,7 @@ export function TraceFilters({
               key={filter.key}
               type="button"
               onClick={() => removeFilter(filter.key)}
-              className="flex items-center gap-1 px-1.5 py-0.5 bg-[#1A1A1A] border border-[#2D2D2D] hover:border-yellow/30 rounded text-[10px] text-muted hover:text-foreground transition-colors group"
+              className="flex items-center gap-1 px-1.5 py-0.5 bg-hover border border-border hover:border-yellow/30 rounded text-[10px] text-muted hover:text-foreground transition-colors group"
             >
               <span>{filter.label}</span>
               <X className="w-2.5 h-2.5 opacity-50 group-hover:opacity-100 group-hover:text-yellow transition-all" />
@@ -773,7 +771,7 @@ export function TraceFilters({
           <button
             type="button"
             onClick={onClear}
-            className="text-[10px] text-[#5B5B5B] hover:text-foreground transition-colors ml-1"
+            className="text-[10px] text-muted hover:text-foreground transition-colors ml-1"
           >
             Clear all
           </button>

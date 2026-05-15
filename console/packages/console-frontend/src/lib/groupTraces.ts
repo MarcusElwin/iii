@@ -78,12 +78,12 @@ function formatDurationMs(ms: number): string {
  * `iii-observability` not configured). Used so the dropdown can hide
  * itself gracefully rather than surfacing an error.
  *
- * The engine returns `function_not_found` as the error_code; the fetch
- * path surfaces it as a thrown Error whose message contains the string.
- * String-match is intentionally generous — different runtimes wrap the
- * error differently.
+ * Matches the engine's `function_not_found` error_code. Earlier versions
+ * of this helper also matched bare `group_by` and `404` substrings,
+ * which was too broad — a legitimate "failed to group_by: timeout"
+ * would have been silently swallowed.
  */
 export function isGroupByUnavailable(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err)
-  return /function[_ ]not[_ ]found|group_by|404/.test(message.toLowerCase())
+  return /function[_ ]not[_ ]found/i.test(message)
 }

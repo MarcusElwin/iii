@@ -15,11 +15,11 @@ export function SpanLogsTab({ span }: SpanLogsTabProps) {
   if (sortedEvents.length === 0) {
     return (
       <div className="p-8 text-center">
-        <div className="w-10 h-10 mb-3 mx-auto rounded-lg bg-[#141414] border border-[#1D1D1D] flex items-center justify-center">
-          <Clock className="w-5 h-5 text-gray-600" />
+        <div className="w-10 h-10 mb-3 mx-auto rounded-lg bg-elevated border border-border-subtle flex items-center justify-center">
+          <Clock className="w-5 h-5 text-muted" />
         </div>
-        <p className="text-sm text-gray-400">No events recorded</p>
-        <p className="text-[11px] text-gray-600 mt-1">
+        <p className="text-sm text-secondary">No events recorded</p>
+        <p className="text-[11px] text-muted mt-1">
           This span has no logged events or exceptions
         </p>
       </div>
@@ -40,7 +40,7 @@ export function SpanLogsTab({ span }: SpanLogsTabProps) {
           <div
             key={`${event.name}-${event.timestamp_unix_nano}`}
             className={`rounded-lg border overflow-hidden ${
-              isException ? 'bg-[#EF4444]/5 border-[#EF4444]/15' : 'bg-[#141414] border-[#1D1D1D]'
+              isException ? 'bg-error/5 border-error/15' : 'bg-elevated border-border-subtle'
             }`}
           >
             <div className="px-4 py-3">
@@ -48,29 +48,29 @@ export function SpanLogsTab({ span }: SpanLogsTabProps) {
                 <div className="flex-1 min-w-0">
                   <div
                     className={`text-sm font-semibold mb-0.5 ${
-                      isException ? 'text-[#EF4444]' : 'text-[#F4F4F4]'
+                      isException ? 'text-error' : 'text-foreground'
                     }`}
                   >
                     {event.name}
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] font-mono text-gray-500">
+                  <div className="flex items-center gap-2 text-[10px] font-mono text-muted">
                     <span>{formatTimestamp(eventMs)}</span>
                     {index > 0 && (
                       <>
-                        <span className="text-gray-600">&middot;</span>
-                        <span className="text-gray-400">{formatRelative(offsetMs)}</span>
+                        <span className="text-muted">&middot;</span>
+                        <span className="text-secondary">{formatRelative(offsetMs)}</span>
                       </>
                     )}
                   </div>
                 </div>
-                <span className="text-[10px] font-mono text-gray-600 flex-shrink-0 px-1.5 py-0.5 bg-[#0A0A0A] rounded">
+                <span className="text-[10px] font-mono text-muted flex-shrink-0 px-1.5 py-0.5 bg-sidebar rounded">
                   #{index + 1}
                 </span>
               </div>
             </div>
 
             {attrEntries.length > 0 && (
-              <div className="border-t border-[#1D1D1D]/50 px-4 py-2.5">
+              <div className="border-t border-border-subtle/50 px-4 py-2.5">
                 <div className="space-y-1.5">
                   {attrEntries.map(([key, value]) => (
                     <EventAttributeRow key={key} attrKey={key} value={value} />
@@ -82,7 +82,7 @@ export function SpanLogsTab({ span }: SpanLogsTabProps) {
         )
       })}
 
-      <div className="text-[10px] text-gray-600 text-center pt-2">
+      <div className="text-[10px] text-muted text-center pt-2">
         {sortedEvents.length} event{sortedEvents.length !== 1 ? 's' : ''}
       </div>
     </div>
@@ -105,8 +105,8 @@ function EventAttributeRow({ attrKey, value }: { attrKey: string; value: unknown
   if (formatted !== null) {
     return (
       <div className="flex flex-col gap-1 text-[11px]">
-        <span className="text-gray-500 font-mono">{attrKey}</span>
-        <pre className="text-gray-300 font-mono text-[10.5px] leading-snug bg-[#0A0A0A] border border-[#1D1D1D]/60 rounded-md px-3 py-2 overflow-x-auto whitespace-pre">
+        <span className="text-muted font-mono">{attrKey}</span>
+        <pre className="text-foreground/80 font-mono text-[10.5px] leading-snug bg-sidebar border border-border-subtle/60 rounded-md px-3 py-2 overflow-x-auto whitespace-pre">
           {formatted}
         </pre>
       </div>
@@ -114,8 +114,8 @@ function EventAttributeRow({ attrKey, value }: { attrKey: string; value: unknown
   }
   return (
     <div className="flex items-start gap-2 text-[11px]">
-      <span className="text-gray-500 font-mono flex-shrink-0">{attrKey}</span>
-      <span className="text-gray-300 font-mono break-all">
+      <span className="text-muted font-mono flex-shrink-0">{attrKey}</span>
+      <span className="text-foreground/80 font-mono break-all">
         {typeof value === 'object' ? JSON.stringify(value) : String(value)}
       </span>
     </div>

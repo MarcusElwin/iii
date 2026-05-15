@@ -117,8 +117,10 @@ function GroupRow({ attribute, group, isSelected, onClick }: GroupRowProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-2 px-3 py-2 text-left border-b border-[#1D1D1D]/60 transition-colors ${
-        isSelected ? 'bg-[#F3F724]/[0.06] border-l-2 border-l-[#F3F724]' : 'hover:bg-[#1D1D1D]/50'
+      className={`flex items-center gap-2 px-3 py-2 text-left border-b border-border-subtle/60 transition-colors ${
+        isSelected
+          ? 'bg-accent/[0.06] border-l-2 border-l-accent'
+          : 'hover:bg-border-subtle/50'
       }`}
       title={`${heading} (${group.trace_ids.length} trace${group.trace_ids.length === 1 ? '' : 's'})`}
     >
@@ -129,7 +131,7 @@ function GroupRow({ attribute, group, isSelected, onClick }: GroupRowProps) {
       />
       <span
         className={`font-mono text-[12px] truncate ${
-          isSelected ? 'text-[#F3F724]' : 'text-foreground'
+          isSelected ? 'text-accent' : 'text-foreground'
         }`}
       >
         {heading}

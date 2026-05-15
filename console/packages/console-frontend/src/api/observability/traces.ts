@@ -1,3 +1,32 @@
+/**
+ * Engine transport for the TRACES tab.
+ *
+ *   useTraceData ──┐
+ *   useTraceGroups ┼─► fetchTraces / fetchTraceTree / fetchTracesGroupBy / clearTraces
+ *   routes/traces ─┤        │
+ *   SessionDetail ─┘        ▼
+ *                   ISdk.trigger({ function_id, payload, timeoutMs })
+ *                           │
+ *                           ▼                (engine bridge_port WebSocket)
+ *                   ┌───────────────────────────────────────────┐
+ *                   │ engine::traces::list      LIST_TIMEOUT_MS │
+ *                   │ engine::traces::tree      TREE_TIMEOUT_MS │
+ *                   │ engine::traces::clear     CLEAR_TIMEOUT_MS│
+ *                   │ engine::traces::group_by  GROUP_BY_TIMEOUT│
+ *                   └───────────────────────────────────────────┘
+ *
+ * Error policy:
+ * - list/tree/group_by swallow "memory exporter not enabled" and return
+ *   empty results so the UI degrades to "OTel not configured" rather
+ *   than a hard error.
+ * - clear rethrows that error — calling clear on a missing exporter is
+ *   programmer error, not a steady state.
+ * - All other errors rethrow as `Error` instances (see `asError`).
+ *
+ * Function IDs are exported as `TRACES_RPC_FUNCTIONS` so a port has a
+ * single discoverable place to change them.
+ */
+
 import type { ISdk } from 'iii-browser-sdk'
 
 export interface SpanEvent {
@@ -104,10 +133,29 @@ export interface TracesGroupByResponse {
   groups: TraceGroup[]
 }
 
-const FN_LIST = 'engine::traces::list'
-const FN_TREE = 'engine::traces::tree'
-const FN_CLEAR = 'engine::traces::clear'
-const FN_GROUP_BY = 'engine::traces::group_by'
+/**
+ * Engine RPC function IDs this module depends on. Exported as a typed
+ * record so a port of the traces feature has a single discoverable
+ * surface for the engine contract — change the engine names here, not
+ * scattered across call sites.
+ *
+ * Compatibility:
+ * - `list`, `tree`, `clear` shipped with the initial trace exporter.
+ * - `group_by` was added later; an older engine returns `function_not_found`
+ *   and `useTraceGroups` falls back to the flat-list view (see
+ *   `isGroupByUnavailable` in `lib/groupTraces.ts`).
+ */
+export const TRACES_RPC_FUNCTIONS = {
+  list: 'engine::traces::list',
+  tree: 'engine::traces::tree',
+  clear: 'engine::traces::clear',
+  groupBy: 'engine::traces::group_by',
+} as const
+
+const FN_LIST = TRACES_RPC_FUNCTIONS.list
+const FN_TREE = TRACES_RPC_FUNCTIONS.tree
+const FN_CLEAR = TRACES_RPC_FUNCTIONS.clear
+const FN_GROUP_BY = TRACES_RPC_FUNCTIONS.groupBy
 
 const LIST_TIMEOUT_MS = 5_000
 const TREE_TIMEOUT_MS = 10_000

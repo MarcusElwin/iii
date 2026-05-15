@@ -1,3 +1,43 @@
+/**
+ * Waterfall view for a single trace's spans.
+ *
+ * Data flow:
+ *
+ *   props.data (WaterfallData)
+ *        │
+ *        ▼
+ *   buildSpanTree(spans)            ← parent/child linking, marks critical path
+ *        │
+ *        ▼
+ *   useReducer<DisplayState>        ← expand/collapse + critical-path toggle
+ *        │
+ *        ▼
+ *   flattenTree(tree, opts)         ← respects expandedIds, hideEngineRouting,
+ *        │                            collapseEngineRoutingPairs; emits depth-offset
+ *        │                            adjusted rows so hidden parents don't leave gaps
+ *        ▼
+ *   visibleSpans: FlatSpanRow[]
+ *        │
+ *        ▼
+ *   Per-row render: indent guides, kind indicator, status pill, name,
+ *                   duration, bar (status-colored or critical-path orange),
+ *                   merged-routing `+1` chip when applicable
+ *
+ * Persistent state (localStorage):
+ *   iii-trace-hide-engine-routing       boolean checkbox
+ *   iii-trace-collapse-engine-pairs     boolean checkbox
+ *   iii-span-col-width                  resizer position
+ *
+ * Theming: all colors flow from CSS custom properties defined in
+ * `styles/globals.css` (var(--success), var(--error), var(--muted),
+ * var(--accent), var(--border-subtle), ...). Only the critical-path
+ * orange (#F97316) is a literal — iii-specific signal, not a theme color.
+ *
+ * Engine-routing heuristics (hide/collapse) live in `lib/spanLabel.ts`.
+ * A porter targeting a different trace producer should override that
+ * module or pass a `routingConfig` prop (not yet implemented).
+ */
+
 import { ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import {
@@ -300,64 +340,64 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#1D1D1D] bg-[#141414]/30">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle bg-elevated/30">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={expandAll}
-            className="px-2 py-1 text-xs text-gray-400 hover:text-[#F4F4F4] hover:bg-[#1D1D1D] rounded transition-colors"
+            className="px-2 py-1 text-xs text-secondary hover:text-foreground hover:bg-border-subtle rounded transition-colors"
           >
             Expand all
           </button>
           <button
             type="button"
             onClick={collapseAll}
-            className="px-2 py-1 text-xs text-gray-400 hover:text-[#F4F4F4] hover:bg-[#1D1D1D] rounded transition-colors"
+            className="px-2 py-1 text-xs text-secondary hover:text-foreground hover:bg-border-subtle rounded transition-colors"
           >
             Collapse all
           </button>
-          <div className="w-px h-4 bg-[#1D1D1D] mx-1" />
-          <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+          <div className="w-px h-4 bg-border-subtle mx-1" />
+          <label className="flex items-center gap-2 text-xs text-secondary cursor-pointer">
             <input
               type="checkbox"
               checked={showCriticalPath}
               onChange={(e) => dispatch({ type: 'SET_CRITICAL_PATH', value: e.target.checked })}
-              className="rounded border-[#1D1D1D] bg-[#141414] text-[#F3F724] focus:ring-[#F3F724]/30"
+              className="rounded border-border-subtle bg-elevated text-accent focus:ring-accent/30"
             />
             Show critical path
           </label>
           <label
-            className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer"
+            className="flex items-center gap-2 text-xs text-secondary cursor-pointer"
             title="Merge each engine handle_invocation+call pair into one row"
           >
             <input
               type="checkbox"
               checked={collapseEngineRoutingPairs}
               onChange={(e) => setCollapseEngineRoutingPairs(e.target.checked)}
-              className="rounded border-[#1D1D1D] bg-[#141414] text-[#F3F724] focus:ring-[#F3F724]/30"
+              className="rounded border-border-subtle bg-elevated text-accent focus:ring-accent/30"
             />
             Collapse routing pairs
           </label>
           <label
-            className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer"
+            className="flex items-center gap-2 text-xs text-secondary cursor-pointer"
             title="Hide engine handle_invocation / call spans entirely"
           >
             <input
               type="checkbox"
               checked={hideEngineRouting}
               onChange={(e) => setHideEngineRouting(e.target.checked)}
-              className="rounded border-[#1D1D1D] bg-[#141414] text-[#F3F724] focus:ring-[#F3F724]/30"
+              className="rounded border-border-subtle bg-elevated text-accent focus:ring-accent/30"
             />
             Hide engine routing
           </label>
         </div>
-        <div className="text-xs text-gray-400">
+        <div className="text-xs text-secondary">
           {visibleSpans.length} of {data.span_count} spans
         </div>
       </div>
 
       <div
-        className="grid gap-4 px-3 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-[#1D1D1D] bg-[#141414]/50"
+        className="grid gap-4 px-3 py-2 text-[11px] font-semibold text-secondary uppercase tracking-wide border-b border-border-subtle bg-elevated/50"
         style={{ gridTemplateColumns: `${spanColWidth}px 1fr` }}
       >
         <div className="flex items-center relative">
@@ -375,7 +415,7 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
             className="absolute right-[-11px] top-0 bottom-0 w-[7px] cursor-col-resize z-10 group"
             title="Drag to resize, double-click to reset"
           >
-            <div className="absolute left-[3px] top-0 bottom-0 w-[1px] bg-[#1D1D1D] group-hover:bg-accent/50 transition-colors" />
+            <div className="absolute left-[3px] top-0 bottom-0 w-[1px] bg-border-subtle group-hover:bg-accent/50 transition-colors" />
           </div>
         </div>
         <div className="flex justify-between">
@@ -402,19 +442,23 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
             const kindIndicator = getSpanKindIndicator(span.kind)
             const displayLabel = formatSpanLabel(span)
 
+            // Bar colors flow from the design tokens (`--success`, `--error`,
+            // `--muted`) so the waterfall re-themes correctly under
+            // [data-theme="light"] or in any host that overrides the
+            // CSS custom properties. The critical-path orange is
+            // intentionally a literal — it's iii-specific signal, not a
+            // theme color, and stays constant across light/dark.
             const getBarStyle = (): React.CSSProperties => {
-              if (isCritical) return { background: 'linear-gradient(to right, #F97316, #FB923C)' }
-              if (span.status === 'error')
-                return { background: 'linear-gradient(to right, #EF4444, #DC2626)' }
-              if (span.status === 'ok')
-                return { background: 'linear-gradient(to right, #22C55E, #16A34A)' }
-              return { background: 'linear-gradient(to right, #6B7280, #4B5563)' }
+              if (isCritical) return { background: '#F97316' }
+              if (span.status === 'error') return { background: 'var(--error)' }
+              if (span.status === 'ok') return { background: 'var(--success)' }
+              return { background: 'var(--muted)' }
             }
 
-            const statusColors = {
-              ok: '#22C55E',
-              error: '#EF4444',
-              unset: '#6B7280',
+            const statusColors: Record<typeof span.status, string> = {
+              ok: 'var(--success)',
+              error: 'var(--error)',
+              unset: 'var(--muted)',
             }
 
             const barStyle = getBarStyle()
@@ -425,7 +469,7 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
                 type="button"
                 className={`
                   grid gap-4 px-3 py-1 items-center transition-colors cursor-pointer w-full text-left
-                  ${isSelected ? 'bg-[#F3F724]/[0.06] border-l-2 border-l-[#F3F724]' : isHovered ? 'bg-[#1D1D1D]' : 'hover:bg-[#1D1D1D]/50'}
+                  ${isSelected ? 'bg-accent/[0.06] border-l-2 border-l-accent' : isHovered ? 'bg-border-subtle' : 'hover:bg-border-subtle/50'}
                   ${isCritical && !isSelected ? 'bg-orange-500/5' : ''}
                 `}
                 style={{ gridTemplateColumns: `${spanColWidth}px 1fr` }}
@@ -440,7 +484,7 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
                     {Array.from({ length: span.displayDepth }).map((_, i) => (
                       <div
                         key={`${span.span_id}-indent-${i}`}
-                        className="w-4 h-6 border-l border-[#1D1D1D]/50"
+                        className="w-4 h-6 border-l border-border-subtle/50"
                       />
                     ))}
                   </div>
@@ -452,7 +496,7 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
                         e.stopPropagation()
                         toggleExpand(span.span_id)
                       }}
-                      className="w-4 h-4 flex items-center justify-center text-gray-400 hover:text-[#F4F4F4] flex-shrink-0"
+                      className="w-4 h-4 flex items-center justify-center text-secondary hover:text-foreground flex-shrink-0"
                     >
                       <ChevronRight
                         className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
@@ -468,13 +512,13 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
                   />
 
                   {span.service_name && (
-                    <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded border border-[#1D1D1D] bg-[#1D1D1D]/50 text-gray-300 leading-none">
+                    <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded border border-border-subtle bg-border-subtle/50 text-foreground/80 leading-none">
                       {span.service_name}
                     </span>
                   )}
                   {kindIndicator && (
                     <span
-                      className="flex-shrink-0 text-[11px] text-gray-500 leading-none w-3 text-center"
+                      className="flex-shrink-0 text-[11px] text-muted leading-none w-3 text-center"
                       title={kindIndicator.label}
                     >
                       {kindIndicator.icon}
@@ -482,35 +526,49 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
                   )}
 
                   <span
-                    className={`text-[13px] font-medium truncate ${isSelected ? 'text-[#F3F724]' : 'text-[#F4F4F4]'}`}
+                    className={`text-[13px] font-medium truncate ${isSelected ? 'text-accent' : 'text-foreground'}`}
                     title={span.name}
                   >
                     {displayLabel}
                   </span>
                   {span.mergedRouting && (
                     <span
-                      className="flex-shrink-0 px-1 py-0.5 text-[9px] font-medium rounded border border-[#1D1D1D] bg-[#141414] text-gray-500 leading-none"
+                      className="flex-shrink-0 px-1 py-0.5 text-[9px] font-medium rounded border border-border-subtle bg-elevated text-muted leading-none"
                       title="Merged: this row hides the engine 'call' child of a handle_invocation pair"
                     >
                       +1
                     </span>
                   )}
 
-                  <span className="font-mono text-[11px] text-gray-400 flex-shrink-0 ml-auto">
+                  <span className="font-mono text-[11px] text-secondary flex-shrink-0 ml-auto">
                     {formatDuration(span.duration_ms)}
                   </span>
                 </div>
 
-                <div className="relative h-6 rounded bg-[linear-gradient(90deg,transparent_0%,transparent_25%,#1D1D1D_25%,#1D1D1D_25.1%,transparent_25.1%,transparent_50%,#1D1D1D_50%,#1D1D1D_50.1%,transparent_50.1%,transparent_75%,#1D1D1D_75%,#1D1D1D_75.1%,transparent_75.1%)]">
+                <div
+                  className="relative h-6 rounded"
+                  style={{
+                    background:
+                      'linear-gradient(90deg, transparent 0%, transparent 25%, var(--border-subtle) 25%, var(--border-subtle) 25.1%, transparent 25.1%, transparent 50%, var(--border-subtle) 50%, var(--border-subtle) 50.1%, transparent 50.1%, transparent 75%, var(--border-subtle) 75%, var(--border-subtle) 75.1%, transparent 75.1%)',
+                  }}>
                   <div
                     className={`
                       absolute h-4 top-1 rounded-[3px] min-w-[3px] transition-all duration-150
-                      ${isSelected ? 'scale-y-[1.3] shadow-[0_0_6px_rgba(243,247,36,0.4)]' : isHovered ? 'scale-y-[1.2] shadow-[0_0_0_2px_rgba(243,247,36,0.3)]' : ''}
+                      ${isSelected ? 'scale-y-[1.3]' : isHovered ? 'scale-y-[1.2]' : ''}
                     `}
                     style={{
                       ...barStyle,
                       left: `${span.start_percent}%`,
                       width: `${Math.max(0.5, span.width_percent)}%`,
+                      // Accent-tinted shadows via color-mix so they re-theme
+                      // under [data-theme="light"]. Modern browsers only;
+                      // the console targets the same set as the rest of
+                      // the app.
+                      boxShadow: isSelected
+                        ? '0 0 6px color-mix(in srgb, var(--accent) 40%, transparent)'
+                        : isHovered
+                          ? '0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent)'
+                          : undefined,
                     }}
                   />
                 </div>
@@ -520,15 +578,15 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
         </div>
 
         {contentHeight > (containerRef.current?.clientHeight || 0) && (
-          <div className="w-16 border-l border-[#1D1D1D] bg-[#141414]/50 flex-shrink-0 relative p-2">
-            <div className="text-[9px] text-gray-400 uppercase tracking-wider mb-2">Map</div>
+          <div className="w-16 border-l border-border-subtle bg-elevated/50 flex-shrink-0 relative p-2">
+            <div className="text-[9px] text-secondary uppercase tracking-wider mb-2">Map</div>
             <div
-              className="relative bg-[#1D1D1D] rounded overflow-hidden"
+              className="relative bg-border-subtle rounded overflow-hidden"
               style={{ height: miniMapHeight }}
             >
               {data.spans.map((span, i) => {
                 const isError = span.status === 'error'
-                const barColor = isError ? '#EF4444' : '#6B7280'
+                const barColor = isError ? 'var(--error)' : 'var(--muted)'
 
                 return (
                   <div
@@ -545,7 +603,7 @@ export function WaterfallChart({ data, onSpanClick, selectedSpanId }: WaterfallC
                 )
               })}
               <div
-                className="absolute left-0 right-0 bg-[#F3F724]/20 border border-[#F3F724]/40 rounded-sm"
+                className="absolute left-0 right-0 bg-accent/20 border border-accent/40 rounded-sm"
                 style={{
                   top: thumbPosition,
                   height: thumbHeight,

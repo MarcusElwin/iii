@@ -1,5 +1,3 @@
-'use client'
-
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TracesFilterParams } from '@/api'
 import type { GroupByOption } from '@/lib/groupTraces'

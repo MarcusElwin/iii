@@ -7,7 +7,7 @@ import { toMs } from '@/lib/traceTransform'
 
 const DEFAULT_TRACE_LIMIT = 500
 
-export interface TraceGroup {
+export interface TraceListItem {
   traceId: string
   rootOperation: string
   functionId?: string
@@ -28,7 +28,7 @@ export interface UseTraceDataOptions {
 }
 
 export interface UseTraceDataReturn {
-  traceGroups: TraceGroup[]
+  traceGroups: TraceListItem[]
   newTraceIds: Set<string>
   setNewTraceIds: React.Dispatch<React.SetStateAction<Set<string>>>
   hasOtelConfigured: boolean
@@ -45,7 +45,7 @@ export function useTraceData({
   isPaused,
 }: UseTraceDataOptions): UseTraceDataReturn {
   const sdk = useEngineSdk()
-  const [traceGroups, setTraceGroups] = useState<TraceGroup[]>([])
+  const [traceGroups, setTraceListItems] = useState<TraceListItem[]>([])
   const [hasOtelConfigured, setHasOtelConfigured] = useState(false)
   const [newTraceIds, setNewTraceIds] = useState<Set<string>>(new Set())
 
@@ -53,7 +53,7 @@ export function useTraceData({
   const prevTraceIdsRef = useRef<Set<string>>(new Set())
 
   const isHoveredRef = useRef(false)
-  const pendingTracesRef = useRef<TraceGroup[] | null>(null)
+  const pendingTracesRef = useRef<TraceListItem[] | null>(null)
 
   const {
     data: tracesData,
@@ -79,7 +79,7 @@ export function useTraceData({
     if (!tracesData) return
 
     if (tracesData.spans && tracesData.spans.length > 0) {
-      const traces: TraceGroup[] = tracesData.spans.map((span) => {
+      const traces: TraceListItem[] = tracesData.spans.map((span) => {
         const startTime = toMs(span.start_time_unix_nano)
         const endTime = toMs(span.end_time_unix_nano)
         const duration = endTime - startTime
@@ -113,7 +113,11 @@ export function useTraceData({
 
       traces.sort((a, b) => b.startTime - a.startTime)
 
-      const fingerprint = `${traces.length}:${traces[0]?.traceId}:${traces[traces.length - 1]?.traceId}:${traces[traces.length - 1]?.startTime}`
+      // Identity fingerprint: count + every trace_id in order. Earlier
+      // versions sampled only first/last/count, which would have missed
+      // middle-only churn if the sort order ever flipped to ascending.
+      // 500-trace ceiling × 32-char IDs ≈ 16KB per compare — cheap.
+      const fingerprint = `${traces.length}:${traces.map((t) => t.traceId).join(',')}`
       if (fingerprint === fingerprintRef.current) return
       fingerprintRef.current = fingerprint
 
@@ -132,17 +136,17 @@ export function useTraceData({
         return
       }
 
-      setTraceGroups(traces)
+      setTraceListItems(traces)
       setHasOtelConfigured(true)
     } else {
-      setTraceGroups([])
+      setTraceListItems([])
       setHasOtelConfigured(false)
     }
   }, [tracesData])
 
   const flushPendingTraces = () => {
     if (pendingTracesRef.current) {
-      setTraceGroups(pendingTracesRef.current)
+      setTraceListItems(pendingTracesRef.current)
       setHasOtelConfigured(true)
       pendingTracesRef.current = null
     }

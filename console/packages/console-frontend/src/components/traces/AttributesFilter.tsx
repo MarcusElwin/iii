@@ -1,5 +1,3 @@
-'use client'
-
 import { Check, Plus, Tag, X } from 'lucide-react'
 import { useState } from 'react'
 

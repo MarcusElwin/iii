@@ -16,7 +16,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchTraceTree } from '@/api'
 import { useEngineSdk } from '@/api/engine-sdk-provider'
-import type { TraceGroup as ApiTraceGroup } from '@/api/observability/traces'
+import type { TraceGroup } from '@/api/observability/traces'
 import { FlameGraph } from '@/components/traces/FlameGraph'
 import { FlowView } from '@/components/traces/FlowView'
 import { ServiceBreakdown } from '@/components/traces/ServiceBreakdown'
@@ -34,7 +34,7 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useResizablePanels } from '@/hooks/useResizablePanels'
-import { type TraceGroup, useTraceData } from '@/hooks/useTraceData'
+import { type TraceListItem, useTraceData } from '@/hooks/useTraceData'
 import { useTraceFilters } from '@/hooks/useTraceFilters'
 import {
   treeToWaterfallData,
@@ -64,7 +64,7 @@ function formatTime(timestamp: number): string {
   })
 }
 
-function StatusIcon({ status }: { status: TraceGroup['status'] }) {
+function StatusIcon({ status }: { status: TraceListItem['status'] }) {
   switch (status) {
     case 'ok':
       return <CheckCircle2 className="w-3.5 h-3.5 text-success" />
@@ -91,7 +91,7 @@ function TracesPage() {
   // The detail panel switches to `SessionDetailPanel` which renders every
   // trace in the group instead of just one. Cleared when groupBy goes back
   // to 'none' or the user closes the panel.
-  const [selectedGroup, setSelectedGroup] = useState<ApiTraceGroup | null>(null)
+  const [selectedGroup, setSelectedGroup] = useState<TraceGroup | null>(null)
 
   const [activeView, setActiveView] = useState<ViewType>('waterfall')
   const [selectedSpan, setSelectedSpan] = useState<VisualizationSpan | null>(null)
@@ -144,15 +144,18 @@ function TracesPage() {
         if (wfData) {
           setWaterfallData(wfData)
         } else {
-          console.warn('[Traces] treeToWaterfallData returned null')
           setSpansError('Failed to process span data')
         }
       } else {
-        console.warn('[Traces] No roots found for trace:', traceId)
         setSpansError('No span data available for this trace')
       }
     } catch (error) {
-      console.error('[Traces] Failed to load trace tree:', error)
+      // Surface the stack to the devtools console only in dev — production
+      // users see the `spansError` UI state instead.
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.error('[Traces] Failed to load trace tree:', error)
+      }
       setSpansError(error instanceof Error ? error.message : 'Failed to load trace details')
     } finally {
       setIsLoadingSpans(false)
@@ -191,7 +194,7 @@ function TracesPage() {
           startTime: 0,
           spanCount: 0,
           services: [],
-        } satisfies TraceGroup)
+        } satisfies TraceListItem)
       : undefined)
 
   const filteredTraces = useMemo(() => {
