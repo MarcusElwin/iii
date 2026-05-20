@@ -61,12 +61,12 @@ and returns the result.
 ## Invoking functions
 
 A function runs when a trigger fires. The same function can be invoked from many trigger types at
-once — direct CLI calls (`iii trigger`), in-process SDK calls (`worker.trigger`), or bindings to
-event-source workers like iii-http, iii-cron, iii-queue, iii-state, and iii-stream — without
-changing the handler.
+once: direct CLI calls (`iii trigger`), in-process SDK calls (`worker.trigger`), or bindings to
+event-source workers like iii-http, iii-cron, iii-queue, iii-state, and iii-stream. All paths leave
+the handler unchanged.
 
-The two most common ways to invoke a function directly are from worker code with `worker.trigger`
-or from the terminal with `iii trigger`:
+The two most common ways to invoke a function directly are from worker code with `worker.trigger` or
+from the terminal with `iii trigger`:
 
 <Tabs>
   <Tab title="Node / TypeScript">
@@ -99,6 +99,7 @@ or from the terminal with `iii trigger`:
         })
         .await?;
     ```
+
   </Tab>
   <Tab title="CLI">
     ```bash
@@ -108,10 +109,10 @@ or from the terminal with `iii trigger`:
 </Tabs>
 
 <Note>
-  Both calls are synchronous by default — they wait for the function to return. For
-  fire-and-forget (`TriggerAction.Void`), queue-routed delivery (`TriggerAction.Enqueue`),
-  per-worker custom actions, condition gating, and binding to event-source triggers, see [Triggers
-  / Call a function directly](/using-iii/triggers#call-a-function-directly).
+  Both calls are synchronous by default; they wait for the function to return. For fire-and-forget
+  (`TriggerAction.Void`), queue-routed delivery (`TriggerAction.Enqueue`), per-worker custom
+  actions, condition gating, and binding to event-source triggers, see [Triggers / Call a function
+  directly](/using-iii/triggers#call-a-function-directly).
 </Note>
 
 ## Define request and response formats
@@ -132,7 +133,7 @@ the same way (via [`iii trigger`](/using-iii/cli) or
 [`worker.trigger`](/using-iii/triggers#call-a-function-directly)). The only thing special about them
 is that you didn't have to register them.
 
-### Engine built-ins (`engine::*`)
+### Engine functions (`engine::*`)
 
 The engine itself registers a small set of introspection and lifecycle functions. Full request and
 response schemas are in the

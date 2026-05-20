@@ -78,6 +78,76 @@ The `config` shape is defined per trigger type and documented in each publishing
   variants (`Void`, `Enqueue`, etc.).
 </Note>
 
+## Attach metadata to a trigger
+
+Each trigger binding accepts an optional `metadata` JSON object set by the consumer at registration
+time. The engine stores it as-is and surfaces it in two places:
+
+1. The publishing worker's `TriggerHandler.registerTrigger(config)` callback sees it as
+   `config.metadata`, so the publisher can act on consumer-supplied tags (priority hints, audit
+   labels, routing keys for the publisher's own bookkeeping).
+2. [`engine::triggers::list`](/using-iii/functions#engine-built-ins-engine) returns it on each
+   `TriggerInfo`, so the console and any other worker doing discovery can read it.
+
+<Tabs>
+  <Tab title="Node / TypeScript">
+    ```typescript
+    worker.registerTrigger({
+      type: "http",
+      function_id: "math::add",
+      config: { api_path: "/math/add", http_method: "POST" },
+      metadata: { team: "platform", env: "staging" },
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    worker.register_trigger({
+        "type": "http",
+        "function_id": "math::add",
+        "config": {"api_path": "/math/add", "http_method": "POST"},
+        "metadata": {"team": "platform", "env": "staging"},
+    })
+    ```
+  </Tab>
+  <Tab title="Rust">
+    ```rust
+    use iii_sdk::RegisterTriggerInput;
+    use serde_json::json;
+
+    worker.register_trigger(RegisterTriggerInput {
+        trigger_type: "http".into(),
+        function_id: "math::add".into(),
+        config: json!({ "api_path": "/math/add", "http_method": "POST" }),
+        metadata: Some(json!({ "team": "platform", "env": "staging" })),
+    })?;
+    ```
+
+  </Tab>
+</Tabs>
+
+<Note>
+  Trigger _types_ have no metadata field of their own. Metadata is attached per binding, not per
+  type.
+
+Don't confuse trigger _metadata_ with trigger type [_schemas_](#attach-schemas-to-the-trigger-type)
+(`trigger_request_format` and `call_request_format`):
+
+- **Metadata** is set by the **consumer** on each binding (ie. the `worker.registerTrigger()` call).
+  It's a free-form tag bag the engine stores as-is, used for the publisher's bookkeeping and for
+  discovery. For example, a consumer binding to `http` might attach
+  `metadata: { team: "platform", env: "staging", on_call: "alice" }` so the publishing worker can
+  log the team, and
+  [`engine::triggers::list`](/using-iii/functions#engine-built-ins-engine) surfaces this
+  information on request.
+- **Schemas** are set by the **publisher** when declaring the trigger type. They document the JSON
+  shapes the consumer interacts with. For example, the built-in `http` type declares:
+  - `config` (what the consumer passes at bind time): `{ api_path, http_method }`.
+  - invocation payload (what their bound function receives on each request):
+    `{ method, headers, query_params, body }`.
+
+</Note>
+
 ## Declaring a Trigger Type
 
 So far this documentation has focused on being the _consumer_: your worker's functions get bound to
@@ -243,10 +313,14 @@ A trigger type can carry two optional JSON Schemas that describe its payloads:
 
 Both feed the iii console, the agent-readable skills, and the
 [`engine::trigger-types::list`](/using-iii/functions#engine-built-ins-engine) output so consumers
-know what to send and what they'll receive. Like
-[function request / response schemas](/creating-workers/functions#attach-request-and-response-schemas),
-they are **metadata only today**: the engine does not reject payloads or callbacks that don't match
-them.
+know what to send and what they'll receive.
+
+<Note>
+  Runtime validation is not yet supported. Attached schemas are informational only; the engine does
+  not reject `config` values or call payloads that don't match them. Treat the schemas as contract
+  documentation for consumers, agents, and the console; same caveat as [function request / response
+  schemas](/creating-workers/functions#attach-request-and-response-schemas).
+</Note>
 
 Each SDK accepts these in its own idiomatic way:
 
@@ -255,9 +329,6 @@ Each SDK accepts these in its own idiomatic way:
 | [Node](/sdk-reference/node-sdk#registertriggertype) / [Browser](/sdk-reference/browser-sdk#registertriggertype) | Raw JSON Schema objects on `trigger_request_format` / `call_request_format`. Convert Zod 4+ schemas with `z.toJSONSchema(...)`.                |
 | [Python](/sdk-reference/python-sdk#register_trigger_type)                                                       | A Pydantic model class (auto-converted) or a raw dict on the same fields of `RegisterTriggerTypeInput`.                                        |
 | [Rust](/sdk-reference/rust-sdk#register_trigger_type)                                                           | Builder methods on `RegisterTriggerType`: `.trigger_request_format::<T>()` and `.call_request_format::<T>()`, where `T: schemars::JsonSchema`. |
-
-The on-the-wire shape both produce is documented in
-[Engine protocol / `RegisterTriggerType`](/sdk-reference/engine-sdk#registertriggertype).
 
 {/* TODO: Review against real SDK/CLI surface (now, and post-sdk rework, separately) */}
 

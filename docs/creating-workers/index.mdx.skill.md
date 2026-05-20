@@ -29,10 +29,10 @@ capability is missing, the gap is filled by a Worker, not by a change to iii its
   <Card title="Workers" href="/creating-workers/workers" icon="server">
     Connect a Worker to the Engine and deploy it.
   </Card>
-  <Card title="Functions" href="/creating-workers/functions" icon="code">
-    Register the Functions a Worker contributes.
-  </Card>
   <Card title="Triggers" href="/creating-workers/triggers" icon="bolt">
     Declare what causes those Functions to run.
+  </Card>
+  <Card title="Functions" href="/creating-workers/functions" icon="code">
+    Register the Functions a Worker contributes.
   </Card>
 </CardGroup>

@@ -22,6 +22,13 @@ Inside the worker, register the function with the SDK. The `id` is what callers 
 `function_id`; the handler signature is the same regardless of how the invocation arrived (direct
 call, HTTP trigger, cron, queue message).
 
+<Note>
+  One exception: [iii-http](https://workers.iii.dev/workers/iii-http) wraps the request as a richer
+  payload so handlers bound to `http` triggers can react to the full HTTP context. See the [iii-http
+  Worker Docs](https://workers.iii.dev/workers/iii-http) for the exact request (method, headers,
+  query_params, body, etc.) and response (status_code, body, headers) payload shapes.
+</Note>
+
 <Tabs>
   <Tab title="Node / TypeScript">
     ```typescript
@@ -74,9 +81,10 @@ the function. The schemas are stored with the function and surface in the iii co
 agent-readable skills.
 
 <Note>
-  Runtime validation is not yet supported. Attached schemas are metadata only; the engine does not
-  reject payloads or handler return values that don't match them. Treat the schemas as contract
-  documentation for callers, agents, and the console.
+  Runtime validation is not yet supported. Attached schemas are metadata only; the engine does not,
+  enforce a specific schema, reject payloads, nor handler return values that don't match the
+  schemas. Treat the schemas as contract documentation for function invocations, agents, and the
+  console.
 </Note>
 
 {/* TODO: Review against real SDK/CLI surface (now, and post-sdk rework, separately) */}
@@ -164,17 +172,131 @@ agent-readable skills.
 
 The schemas also feed the iii console and the agent-readable skills.
 
-## HTTP-invoked functions
+## HTTP-invokable functions
 
-{/* TODO: cover the request/response shape iii-http delivers to a function bound on an `http` trigger: request fields available on the payload (method, headers, body), how to return non-JSON, how to set status codes, and any per-binding config options that affect the contract. */}
+You can also register an external HTTP endpoint as a function. The engine makes the HTTP call
+whenever the function is invoked, your worker only declares the endpoint.
+
+This is useful for delegating work to your existing API Gateways, webhooks, serverless platforms
+(Lambda, Azure Functions, Google Cloud Functions), or any third-party API you want to surface as a
+regular iii function.
+
+The function is then triggerable like any other: `worker.trigger`, `iii trigger`, and any bound
+trigger type (queue, cron, state, http) all work without any other changes.
+
+<Accordion title="Example: register an external webhook as `notifications::send`">
+  <Tabs>
+    <Tab title="Node / TypeScript">
+      ```typescript
+      import { registerWorker } from "iii-sdk";
+
+      const worker = registerWorker(process.env.III_URL);
+
+      worker.registerFunction(
+        "notifications::send",
+        {
+          url: "https://hooks.provider.example.com/notify",
+          method: "POST",
+          timeout_ms: 5000,
+          headers: { "X-Service": "iii-worker" },
+          auth: { type: "bearer", token_key: "PROVIDER_API_TOKEN" },
+        },
+        { description: "POST a notification to the provider webhook" },
+      );
+      ```
+    </Tab>
+    <Tab title="Python">
+      ```python
+      import os
+      from iii import HttpInvocationConfig, InitOptions, register_worker
+      from iii.iii_types import HttpAuthBearer
+
+      worker = register_worker(
+          os.environ.get("III_URL"),
+          InitOptions(worker_name="notifications-worker"),
+      )
+
+      worker.register_function(
+          "notifications::send",
+          HttpInvocationConfig(
+              url="https://hooks.provider.example.com/notify",
+              method="POST",
+              timeout_ms=5000,
+              headers={"X-Service": "iii-worker"},
+              auth=HttpAuthBearer(token_key="PROVIDER_API_TOKEN"),
+          ),
+          description="POST a notification to the provider webhook",
+      )
+      ```
+    </Tab>
+    <Tab title="Rust">
+      ```rust
+      use std::collections::HashMap;
+      use iii_sdk::{
+          HttpAuthConfig, HttpInvocationConfig, HttpMethod, InitOptions,
+          RegisterFunctionMessage, register_worker,
+      };
+
+      let url = std::env::var("III_URL").expect("III_URL must be set");
+      let worker = register_worker(&url, InitOptions::default());
+
+      let mut headers = HashMap::new();
+      headers.insert("X-Service".into(), "iii-worker".into());
+
+      worker.register_function((
+          RegisterFunctionMessage::with_id("notifications::send".into())
+              .with_description("POST a notification to the provider webhook".into()),
+          HttpInvocationConfig {
+              url: "https://hooks.provider.example.com/notify".into(),
+              method: HttpMethod::Post,
+              timeout_ms: Some(5000),
+              headers,
+              auth: Some(HttpAuthConfig::Bearer {
+                  token_key: "PROVIDER_API_TOKEN".into(),
+              }),
+          },
+      ));
+      ```
+    </Tab>
+
+  </Tabs>
+</Accordion>
+
+### `HttpInvocationConfig` fields
+
+While a normal function takes an `id` and a `handler`, http invokeable functions take an `id` and a
+`HttpInvocationConfig`.
+
+| Field        | Type                                              | Default  | Description                                                                                             |
+| ------------ | ------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| `url`        | `string`                                          | (required) | Endpoint the engine calls when the function is invoked.                                                 |
+| `method`     | `"GET" \| "POST" \| "PUT" \| "PATCH" \| "DELETE"` | `"POST"`   | HTTP method.                                                                                            |
+| `timeout_ms` | `number`                                          | `30000`    | Per-request timeout in milliseconds.                                                                    |
+| `headers`    | `Record<string, string>`                          | `{}`       | Headers added to every invocation.                                                                      |
+| `auth`       | `HttpAuthConfig`                                  | (none)     | An object with two fields: `bearer`, `hmac`, or `api_key` AND `token_key`, `secret_key`, or `value_key` |
+
+<Note>
+  Auth fields (`token_key`, `secret_key`, `value_key`) are specified as the **names of environment
+  variables**, not the secrets themselves. The engine resolves them from its own process environment
+  at registration time, so secrets stay on the engine host and never travel over the SDK WebSocket.
+</Note>
+
+### HTTP error handling
+
+The engine sends the invocation payload as the JSON request body and treats any non-2xx response or
+network error as an invocation failure that propagates back to the caller. HTTP-invoked functions
+appear in [`engine::functions::list`](/using-iii/functions#engine-built-ins-engine) and are
+discoverable through the console exactly like in-process handlers.
 
 ## Return values and errors
 
 A function returns either a value (which the handler is responsible for shaping to match its
-documented response schema) or an error. Errors raised inside the handler are propagated to the
-caller as invocation errors with the worker's stack trace; the engine doesn't swallow them. Use this
-distinction to express expected failures (return a structured error value) versus unexpected ones
-(throw / raise / return `Err`).
+documented [response schema](#attach-request-and-response-schemas)) or an error. Errors raised
+inside the handler are propagated to the caller as invocation errors with the worker's stack trace
+attached: Node forwards `error.stack`, Python forwards `traceback.format_exc()`, and Rust forwards
+the underlying error's stack trace. The engine doesn't swallow them. Use this distinction to express
+expected failures (return a structured error value) versus unexpected ones (throw / raise / return
+`Err`).
 
 ## Unregister a function
 
@@ -212,10 +334,3 @@ pending invocations error out.
 
   </Tab>
 </Tabs>
-
-## What goes in Worker Docs
-
-The function ids your worker exposes, what each one does, and any worker-specific semantics
-(idempotency, rate limits, side effects) belong in this worker's Worker Docs. Keep iii-level
-concepts (the registration surface, schema metadata, error propagation) here; document the
-per-function specifics there.

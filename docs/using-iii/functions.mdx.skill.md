@@ -5,17 +5,6 @@
 
 {/* TODO: Re-link worker references to https://workers.iii.dev/workers/<name> once the Worker Docs migration ships. */}
 
-## Invoking functions
-
-A function runs when a trigger fires. The same function can be invoked from many trigger types at
-once (direct CLI calls, an HTTP route, and a cron schedule, for example) without changing the
-handler.
-
-<Note>
-  Some trigger types are: [`iii trigger`](/using-iii/cli), [`worker.trigger`](/using-iii/triggers),
-  iii-http, iii-cron, iii-queue, iii-state, iii-stream.
-</Note>
-
 ## Register a function
 
 Inside a worker, `worker.registerFunction(id, handler)` makes a function callable from anywhere in
@@ -67,6 +56,63 @@ and returns the result.
   </Tab>
 </Tabs>
 
+## Invoking functions
+
+A function runs when a trigger fires. The same function can be invoked from many trigger types at
+once: direct CLI calls (`iii trigger`), in-process SDK calls (`worker.trigger`), or bindings to
+event-source workers like iii-http, iii-cron, iii-queue, iii-state, and iii-stream. All paths leave
+the handler unchanged.
+
+The two most common ways to invoke a function directly are from worker code with `worker.trigger` or
+from the terminal with `iii trigger`:
+
+<Tabs>
+  <Tab title="Node / TypeScript">
+    ```typescript
+    const result = await worker.trigger({
+      function_id: "math::add",
+      payload: { a: 2, b: 3 },
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    result = worker.trigger({
+        "function_id": "math::add",
+        "payload": {"a": 2, "b": 3},
+    })
+    ```
+  </Tab>
+  <Tab title="Rust">
+    ```rust
+    use iii_sdk::TriggerRequest;
+    use serde_json::json;
+
+    let result = worker
+        .trigger(TriggerRequest {
+            function_id: "math::add".into(),
+            payload: json!({ "a": 2, "b": 3 }),
+            action: None,
+            timeout_ms: None,
+        })
+        .await?;
+    ```
+
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    iii trigger math::add a=2 b=3
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  Both calls are synchronous by default; they wait for the function to return. For fire-and-forget
+  (`TriggerAction.Void`), queue-routed delivery (`TriggerAction.Enqueue`), per-worker custom
+  actions, condition gating, and binding to event-source triggers, see [Triggers / Call a function
+  directly](/using-iii/triggers#call-a-function-directly).
+</Note>
+
 ## Define request and response formats
 
 Functions can carry JSON Schemas for their request payload and response shape. The schemas are
@@ -77,14 +123,6 @@ stored with the function and feed the iii console and the agent-readable skills.
   Functions](/creating-workers/functions#attach-request-and-response-schemas).
 </Note>
 
-## Invoke a function
-
-<Note>
-  For how to call a registered function from worker code or the terminal (with optional delivery
-  actions like fire-and-forget or queue-routed), see [Triggers / Call a function
-  directly](/using-iii/triggers#call-a-function-directly).
-</Note>
-
 ## Common functions
 
 A handful of functions ship with the iii engine and the standard workers. You'll likely call them
@@ -93,7 +131,7 @@ the same way (via [`iii trigger`](/using-iii/cli) or
 [`worker.trigger`](/using-iii/triggers#call-a-function-directly)). The only thing special about them
 is that you didn't have to register them.
 
-### Engine built-ins (`engine::*`)
+### Engine functions (`engine::*`)
 
 The engine itself registers a small set of introspection and lifecycle functions. Full request and
 response schemas are in the
