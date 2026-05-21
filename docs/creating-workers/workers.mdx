@@ -64,7 +64,9 @@ process can be deployed anywhere reachable on the network.
     ```typescript
     import { registerWorker } from "iii-sdk";
 
-    const worker = registerWorker(process.env.III_URL, {
+    const url = process.env.III_URL;
+    if (!url) throw new Error("III_URL must be set");
+    const worker = registerWorker(url, {
       workerName: "my-worker",
     });
     ```
