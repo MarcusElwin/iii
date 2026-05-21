@@ -5,35 +5,46 @@ owner: "devrel"
 type: "how-to"
 ---
 
-## Goal
+Channels move large or binary payloads between iii workers without putting the data in a JSON
+function payload. Use one when the payload is expected to be large (files, images, datasets), above
+roughly **16 MB**, intended to be streamed (audio, video), or you want incremental progress updates
+during long-running work. For small JSON, stick with a regular `worker.trigger(...)` call.
 
-Stream a large or binary payload from one function to another without putting the data itself in a
-JSON function payload.
+<Note>
+  For the underlying model (how channels are addressed, multiplexed, and torn down), see [Channels
+  architecture](/understanding-iii/channels).
+</Note>
 
-Use a normal function invocation when the payload is small JSON and can be handled as one request.
-Use a channel when the payload is large, binary, or naturally stream-shaped.
+## Payload size
 
-Good fits for channels:
+iii itself doesn't enforce a maximum trigger-payload size. The effective ceiling comes from
+whichever WebSocket library the engine and the calling SDK use, and each has its own defaults for
+the per-frame and per-message size. The smallest common per-frame default sits around 16 MB, which
+is the practical line at which you should switch to a channel.
 
-- File uploads and downloads.
-- Images, audio, video, PDFs, and datasets.
-- Progress updates during long-running work.
-- Producer and consumer pipelines where the data should move as a stream.
+The libraries iii currently relies on:
 
-<Info title="Architecture">
-  For the underlying model, see [Channels architecture](/understanding-iii/channels).
-</Info>
+- **Engine** ([axum](https://docs.rs/axum) on top of
+  [tokio-tungstenite](https://docs.rs/tokio-tungstenite) ). See
+  [`WebSocketConfig`](https://docs.rs/tungstenite/latest/tungstenite/protocol/struct.WebSocketConfig.html)
+  for `max_frame_size` and `max_message_size`.
+- **Node SDK** ([ws](https://github.com/websockets/ws)). See the
+  [`maxPayload`](https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketserveroptions-callback)
+  option.
+- **Python SDK** ([websockets](https://websockets.readthedocs.io/)). See the
+  [`max_size`](https://websockets.readthedocs.io/en/stable/reference/asyncio/client.html) option.
+- **Rust SDK** ([tokio-tungstenite](https://docs.rs/tokio-tungstenite)) See
+  [`WebSocketConfig`](https://docs.rs/tungstenite/latest/tungstenite/protocol/struct.WebSocketConfig.html),
+  same as the engine.
 
-## Steps
+These are library defaults and can shift between dependency versions; iii doesn't publish a hard
+guaranteed cap. 16 MB is a safe default to follow.
 
-### 1. Create a channel
+## Create a channel
 
-A channel has two local stream objects and two serializable refs:
-
-- `writer`: local writable stream.
-- `reader`: local readable stream.
-- `writerRef`: serializable token for the writer end.
-- `readerRef`: serializable token for the reader end.
+`worker.createChannel()` returns a channel with two local stream objects and two serializable refs:
+`writer` and `reader` are the local stream ends, and `writerRef` / `readerRef` are the tokens you
+pass to another function so it can read or write the other end.
 
 <Tabs>
   <Tab title="Node / TypeScript">
@@ -45,6 +56,7 @@ A channel has two local stream objects and two serializable refs:
     // channel.writerRef
     // channel.readerRef
     ```
+
   </Tab>
   <Tab title="Python">
     ```python
@@ -55,6 +67,7 @@ A channel has two local stream objects and two serializable refs:
     # channel.writer_ref
     # channel.reader_ref
     ```
+
   </Tab>
   <Tab title="Rust">
     ```rust
@@ -65,12 +78,14 @@ A channel has two local stream objects and two serializable refs:
     // channel.writer_ref
     // channel.reader_ref
     ```
+
   </Tab>
 </Tabs>
 
-### 2. Write to the channel
+## Write to a channel
 
-Write the stream payload to the local writer and close it when you are done.
+Write the payload to the local `writer` and close it when finished. The bytes flow through the
+engine to whichever worker holds the matching `reader`.
 
 <Tabs>
   <Tab title="Node / TypeScript">
@@ -79,6 +94,7 @@ Write the stream payload to the local writer and close it when you are done.
 
     channel.writer.stream.end(Buffer.from("file contents"));
     ```
+
   </Tab>
   <Tab title="Python">
     ```python
@@ -87,6 +103,7 @@ Write the stream payload to the local writer and close it when you are done.
     await channel.writer.write(b"file contents")
     await channel.writer.close_async()
     ```
+
   </Tab>
   <Tab title="Rust">
     ```rust
@@ -95,17 +112,31 @@ Write the stream payload to the local writer and close it when you are done.
     channel.writer.write(b"file contents").await?;
     channel.writer.close().await?;
     ```
+
   </Tab>
 </Tabs>
 
-### 3. Pass the reader ref to another function
+## Pass a channel ref to another function
 
-Pass the `readerRef` / `reader_ref` as part of a normal function invocation. The receiving function
-uses that ref to read from the channel.
+Pass the `readerRef` (or `writerRef`) as part of a normal function invocation. The receiving
+function uses the ref to read from (or write to) the channel.
 
 <Tabs>
   <Tab title="Node / TypeScript">
     ```typescript
+    import type { ChannelReader } from "iii-sdk";
+
+    worker.registerFunction(
+      "files::process",
+      async (input: { filename: string; reader: ChannelReader }) => {
+        let bytes = 0;
+        for await (const chunk of input.reader.stream) {
+          bytes += chunk.length;
+        }
+        return { filename: input.filename, bytes };
+      },
+    );
+
     const result = await worker.trigger({
       function_id: "files::process",
       payload: {
@@ -117,6 +148,15 @@ uses that ref to read from the channel.
   </Tab>
   <Tab title="Python">
     ```python
+    async def process_file(input: dict) -> dict:
+        reader = input["reader"]
+        total = 0
+        async for chunk in reader:
+            total += len(chunk)
+        return {"filename": input["filename"], "bytes": total}
+
+    iii_client.register_function("files::process", process_file)
+
     result = await iii_client.trigger_async({
         "function_id": "files::process",
         "payload": {
@@ -128,8 +168,28 @@ uses that ref to read from the channel.
   </Tab>
   <Tab title="Rust">
     ```rust
-    use iii_sdk::TriggerRequest;
+    use iii_sdk::{ChannelDirection, ChannelReader, IIIError, TriggerRequest};
     use serde_json::json;
+
+    let worker_addr = worker.address();
+    worker.register_function("files::process", move |input: serde_json::Value| {
+        let worker_addr = worker_addr.clone();
+        async move {
+            let refs = iii_sdk::extract_channel_refs(&input);
+            let reader_ref = refs
+                .iter()
+                .find(|(k, r)| k == "reader" && matches!(r.direction, ChannelDirection::Read))
+                .map(|(_, r)| r.clone())
+                .ok_or_else(|| IIIError::Handler("missing reader channel ref".into()))?;
+
+            let mut reader = ChannelReader::new(worker_addr, &reader_ref);
+            let mut bytes = 0;
+            while let Some(chunk) = reader.next_binary().await? {
+                bytes += chunk.len();
+            }
+            Ok(json!({ "bytes": bytes }))
+        }
+    });
 
     let result = worker
         .trigger(TriggerRequest {
@@ -143,13 +203,15 @@ uses that ref to read from the channel.
         })
         .await?;
     ```
+
   </Tab>
 </Tabs>
 
-### 4. Read from the channel
+## Read from a channel
 
-Node and Python deserialize channel refs into live channel objects before your handler runs. Rust
-receives the ref in JSON and reconstructs the reader with `ChannelReader::new(...)`.
+Node and Python deserialize incoming channel refs into live channel objects before the handler runs,
+so the ref arrives ready to iterate. Rust receives the ref in JSON and reconstructs the reader
+explicitly with `ChannelReader::new(...)`.
 
 <Tabs>
   <Tab title="Node / TypeScript">
@@ -166,6 +228,7 @@ receives the ref in JSON and reconstructs the reader with `ChannelReader::new(..
       return { bytes };
     });
     ```
+
   </Tab>
   <Tab title="Python">
     ```python
@@ -180,6 +243,7 @@ receives the ref in JSON and reconstructs the reader with `ChannelReader::new(..
 
     worker.register_function("files::process", process_file)
     ```
+
   </Tab>
   <Tab title="Rust">
     ```rust
@@ -202,17 +266,12 @@ receives the ref in JSON and reconstructs the reader with `ChannelReader::new(..
 
     Ok(json!({ "bytes": bytes }))
     ```
+
   </Tab>
 </Tabs>
 
-## Result
-
-The caller passes only a small ref through `trigger()`. The stream payload travels over the channel,
-and the receiving function reads it incrementally.
-
-## Related pages
-
-- [Channels architecture](/understanding-iii/channels)
-- [Node SDK channels](/sdk-reference/node-sdk#channels)
-- [Python SDK channels](/sdk-reference/python-sdk#channels)
-- [Rust SDK channels](/sdk-reference/rust-sdk#channels)
+<Note>
+  For the per-language channel API surface, see the SDK reference:
+  [Node](/sdk-reference/node-sdk#channels), [Python](/sdk-reference/python-sdk#channels), and
+  [Rust](/sdk-reference/rust-sdk#channels).
+</Note>
