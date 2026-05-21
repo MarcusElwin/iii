@@ -179,6 +179,7 @@ pre,
 pre code,
 .code-block [data-line],
 .code-block .line {
+  font-variant-numeric: tabular-nums;
   line-height: 1.45 !important;
 }
 
