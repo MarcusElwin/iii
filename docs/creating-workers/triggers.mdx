@@ -145,7 +145,8 @@ Don't confuse trigger _metadata_ with trigger type [_schemas_](#attach-schemas-t
   log the team, and [`engine::triggers::list`](/using-iii/functions#engine-functions-engine)
   surfaces this information on request.
 - **Schemas** are set by the **publisher** when declaring the trigger type. They document the JSON
-  shapes the consumer interacts with. For example, the built-in `http` type declares:
+  shapes the consumer interacts with. For example, the `http` type published by
+  [iii-http](https://workers.iii.dev/workers/iii-http) declares:
   - `config` (what the consumer passes at bind time): `{ api_path, http_method }`.
   - invocation payload (what their bound function receives on each request):
     `{ method, headers, query_params, body }`.
@@ -193,7 +194,7 @@ signatures.
 {/* TODO: Review against real SDK/CLI surface (now, and post-sdk rework, separately) */}
 
 The example below sketches a tiny version of [iii-http](https://workers.iii.dev/workers/iii-http),
-the worker that publishes the real built-in `http` trigger type. The publisher worker:
+the worker that publishes the real `http` trigger type. The publisher worker:
 
 1. Declares an HTTP-shaped trigger type called `mini-http`
 1. Maintains a `bindings` map of `{ trigger id → function_id, method+path }` as consumers
