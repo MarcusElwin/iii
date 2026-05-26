@@ -105,7 +105,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "iii-observability", editable = "../observability" },
+    { name = "iii-observability", specifier = "==0.13.0.dev1" },
     { name = "iii-sdk", editable = "../iii" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-sdk" },
@@ -114,32 +114,21 @@ requires-dist = [
 [[package]]
 name = "iii-observability"
 version = "0.13.0.dev1"
-source = { editable = "../observability" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-sdk" },
     { name = "websockets" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
-    { name = "opentelemetry-api", specifier = ">=1.25" },
-    { name = "opentelemetry-sdk", specifier = ">=1.25" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.0" },
-    { name = "pytest-httpx", marker = "extra == 'dev'", specifier = ">=0.30" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.2" },
-    { name = "websockets", specifier = ">=12.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/6f/2b/158d18677692b895343700950c00252f23c4695416c4211e3d2666ba7c5a/iii_observability-0.13.0.dev1.tar.gz", hash = "sha256:e085df3ea27d533074f184693b6da7d8637efeb4968c9e318e1629e0e0ea4cbd", size = 61799, upload-time = "2026-05-26T14:51:31.386Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fe/f4/5317be53188507444e67dd9032f699b3575cc29a2a7fb3f7ec61c6008574/iii_observability-0.13.0.dev1-py3-none-any.whl", hash = "sha256:8294fcf72b8b6ba2bff6dd921eafc29a244c3b5791827ae22f960adedbef6c3a", size = 19781, upload-time = "2026-05-26T14:51:30.198Z" },
 ]
-provides-extras = ["dev"]
 
 [[package]]
 name = "iii-sdk"
-version = "0.13.0.dev1"
+version = "0.15.0.dev1"
 source = { editable = "../iii" }
 dependencies = [
     { name = "iii-observability" },
@@ -153,7 +142,7 @@ requires-dist = [
     { name = "aiohttp", marker = "extra == 'dev'", specifier = ">=3.9" },
     { name = "anyio", marker = "extra == 'dev'", specifier = ">=4.0" },
     { name = "griffe", marker = "extra == 'dev'", specifier = ">=1.0" },
-    { name = "iii-observability", editable = "../observability" },
+    { name = "iii-observability", specifier = "==0.13.0.dev1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8" },
     { name = "opentelemetry-api", specifier = ">=1.25" },
     { name = "pydantic", specifier = ">=2.0" },
