@@ -277,6 +277,13 @@
                   "creating-workers/functions",
                   "creating-workers/channels"
                 ]
+              },
+              {
+                "group": "Tutorials",
+                "pages": [
+                  "tutorials/linkly/overview",
+                  "tutorials/linkly/foundations"
+                ]
               }
             ]
           },
