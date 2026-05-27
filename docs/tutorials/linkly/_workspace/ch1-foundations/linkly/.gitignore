@@ -261,6 +261,9 @@ build/Release
 node_modules/
 jspm_packages/
 
+# Tutorial harness: workers self-install from package.json; lock files are noise here.
+package-lock.json
+
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 

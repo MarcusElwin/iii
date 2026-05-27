@@ -35,9 +35,11 @@ iii worker init link-worker --language typescript
 
 {/* TODO(validation): iii worker init is broken in 0.13.0 (worker-bare template missing iii.worker.yaml). Files below are hand-verified against a live engine; re-confirm scaffold output once init is fixed. */}
 
-The worker is a small Node package. Replace its files with the four below.
+A worker is a self-contained service. Here, `link-worker` is a Node package. Replace its scaffolded
+files with the four below.
 
-`link-worker/iii.worker.yaml` tells the engine how to run the worker:
+`link-worker/iii.worker.yaml` describes how the worker builds and runs itself: the command to install
+dependencies and the command to start.
 
 ```yaml iii.worker.yaml
 name: link-worker
@@ -49,6 +51,11 @@ scripts:
   install: 'npm install'
   start: 'npm run dev'
 ```
+
+<Info>
+  The engine runs a worker for you from these `scripts`, but a worker is an ordinary service: you can
+  also start it yourself and let it connect to the engine over WebSocket.
+</Info>
 
 `link-worker/package.json` pulls in the iii SDK and a dev runner:
 
@@ -74,7 +81,9 @@ scripts:
 }
 ```
 
-`link-worker/src/store.ts` holds the link map, kept in memory for now:
+Linkly turns a short code into a long URL, so the worker needs somewhere to keep that mapping. For
+now `link-worker/src/store.ts` keeps it in memory, the simplest thing that works (a later chapter
+makes it durable):
 
 ```typescript src/store.ts
 export type Link = { code: string; url: string }
@@ -98,7 +107,9 @@ export class LinkStore {
 }
 ```
 
-`link-worker/src/index.ts` connects to the engine and registers two functions:
+`link-worker/src/index.ts` is the worker's entry point. `registerWorker` opens the connection to the
+engine, and `registerFunction` publishes a function under a name like `link::create` that anything
+else on the engine can call:
 
 ```typescript src/index.ts
 import { registerWorker, Logger } from 'iii-sdk'
@@ -124,23 +135,34 @@ iii.registerFunction('link::resolve', async (payload: { code: string }) => {
 console.info('link-worker ready')
 ```
 
-Install the worker's dependencies:
+## Register the worker
 
-```bash
-cd link-worker && npm install && cd ..
+`iii worker init` scaffolds the worker but leaves your project untouched. The engine runs the workers
+listed in `config.yaml`, so declare `link-worker` there. Add it to the `workers:` list:
+
+```yaml config.yaml
+  - name: link-worker
+    worker_path: ./link-worker
 ```
+
+<Note>
+  You use `iii worker add` to install external workers from the registry (you add `iii-http` that way
+  below). A local worker you are developing is part of your project, so you declare it in
+  `config.yaml` and drive it with `iii worker start`, `stop`, and `restart`.
+</Note>
 
 ## Start the engine
 
-From the project root, start the engine. It reads `config.yaml`, then launches `link-worker` and
-registers its functions:
+From the project root, start the engine. It reads `config.yaml`, installs and starts `link-worker`,
+and registers its functions:
 
 ```bash
 iii
 ```
 
-You will see `link-worker` connect and register `link::create` and `link::resolve`. Leave the engine
-running and open a second terminal for the next steps.
+You do not run `npm install` yourself: the engine runs the worker's `install` script the first time it
+starts the worker. You will see `link-worker` register `link::create` and `link::resolve`. Leave the
+engine running and open a second terminal for the next steps.
 
 ## Call the functions
 
@@ -182,8 +204,8 @@ iii trigger link::resolve code=nope
 ```
 
 <Check>
-  You have a working domain worker. The same two functions now back the HTTP API, and
-  everything you add in later chapters.
+  You have a working domain worker. `link::create` and `link::resolve` run on the engine and are
+  callable from anywhere on it. Next you put them behind HTTP.
 </Check>
 
 ## Expose it over HTTP
@@ -195,9 +217,10 @@ served by the `iii-http` worker, so add it first:
 iii worker add iii-http
 ```
 
-Now add an HTTP edge to `link-worker/src/index.ts`. These handlers read the request, call your
-domain functions through the engine with `iii.trigger`, and shape the HTTP response. Add the imports
-and the two handlers below to the file:
+Now add an HTTP edge to `link-worker/src/index.ts`. An HTTP handler receives an `ApiRequest` (path
+parameters in `req.path_params`, the parsed JSON body in `req.body`) and returns an `ApiResponse`.
+These handlers read the request, call your domain functions through the engine with `iii.trigger`,
+and shape the response. Add the imports and the two handlers below:
 
 ```typescript src/index.ts
 import type { ApiRequest, ApiResponse } from 'iii-sdk'
@@ -254,10 +277,12 @@ iii.registerTrigger({
 })
 ```
 
-<Note>
-  The `dev` script runs `tsx watch`, so saving the file reloads the worker. Because `iii-http` is
-  already active, the new `http` triggers bind on reload.
-</Note>
+Restart the worker so it re-registers, now with `iii-http` active and ready to serve the new `http`
+triggers:
+
+```bash
+iii worker restart link-worker
+```
 
 ## Use the web service
 

@@ -18,8 +18,10 @@ workers:
     config:
       adapter:
         name: builtin
+
   - name: link-worker
     worker_path: ./link-worker
+
   - name: iii-http
     config:
       concurrency_request_limit: 1024
