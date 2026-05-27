@@ -148,9 +148,9 @@ listed in `config.yaml`, so declare `link-worker` there. Add it to the `workers:
 ```
 
 <Note>
-  You use `iii worker add` to install external workers from the registry (you add `iii-http` that way
-  below). A local worker you are developing is part of your project, so you declare it in
-  `config.yaml` and drive it with `iii worker start`, `stop`, and `restart`.
+  `iii worker add` works for any worker, local or remote. In this tutorial you manage your own workers
+  directly instead: declare `link-worker` in `config.yaml` and use `iii worker start`, `stop`, and
+  `restart`. You will use `iii worker add` for off-the-shelf workers like `iii-http`.
 </Note>
 
 ## Start the engine
@@ -279,12 +279,8 @@ iii.registerTrigger({
 })
 ```
 
-Restart the worker so it re-registers, now with `iii-http` active and ready to serve the new `http`
-triggers:
-
-```bash
-iii worker restart link-worker
-```
+Save the file. The worker runs under `tsx watch`, so it reloads and registers the two new routes,
+`GET /s/:code` and `POST /links`.
 
 ## Use the web service
 
