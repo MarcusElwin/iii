@@ -263,7 +263,7 @@ for n in $(seq 1 3); do curl -s -o /dev/null http://127.0.0.1:3111/s/iii; done
 The durable history is now queryable with SQL:
 
 ```bash
-iii trigger database::query --json '{"db":"primary","sql":"SELECT COUNT(*) AS clicks FROM clicks WHERE code = ?","params":["iii"]}'
+iii trigger database::query db=primary sql="SELECT COUNT(*) AS clicks FROM clicks WHERE code = 'iii'"
 ```
 
 ```json

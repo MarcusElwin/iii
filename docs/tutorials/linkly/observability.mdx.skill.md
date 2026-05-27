@@ -55,7 +55,7 @@ curl -s -o /dev/null http://127.0.0.1:3111/s/missing
 ## Read the logs
 
 ```bash
-iii trigger engine::logs::list --json '{"limit":100}'
+iii trigger engine::logs::list limit=100
 ```
 
 Each resolve produced an entry. Trimmed to the parts that matter:
@@ -79,13 +79,13 @@ came from, which is where you look next.
 Every request is also a trace. Grab the most recent redirect:
 
 ```bash
-iii trigger engine::traces::list --json '{"name":"GET /s/:code","limit":1}'
+iii trigger engine::traces::list name="GET /s/:code" limit=1
 ```
 
 Take the `trace_id` from the result and walk the whole request as a tree:
 
 ```bash
-iii trigger engine::traces::tree --json '{"trace_id":"<trace_id>"}'
+iii trigger engine::traces::tree trace_id=<trace_id>
 ```
 
 You get the full path of one redirect, across two workers:
@@ -115,8 +115,7 @@ time: the view you reach for when a link feels slow.
 To compare many requests, list the redirect spans sorted by duration, slowest first:
 
 ```bash
-iii trigger engine::traces::list \
-  --json '{"name":"GET /s/:code","sort_by":"duration_ms","sort_order":"desc","limit":10}'
+iii trigger engine::traces::list name="GET /s/:code" sort_by=duration_ms sort_order=desc limit=10
 ```
 
 The slowest redirects rise to the top; open any one's `trace_id` with `engine::traces::tree` to see

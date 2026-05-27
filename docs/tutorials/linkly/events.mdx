@@ -257,7 +257,7 @@ curl -s -X PUT http://127.0.0.1:3111/links/iii \
 The Python worker has been counting link creations the whole time:
 
 ```bash
-iii trigger database::query --json '{"db":"primary","sql":"SELECT day, count FROM daily_link_counts"}'
+iii trigger database::query db=primary sql="SELECT day, count FROM daily_link_counts"
 ```
 
 ```json
