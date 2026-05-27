@@ -277,13 +277,19 @@
                   "creating-workers/functions",
                   "creating-workers/channels"
                 ]
-              },
+              }
+            ]
+          },
+          {
+            "tab": "Tutorials",
+            "groups": [
               {
-                "group": "Tutorials",
+                "group": "Linkly",
                 "pages": [
                   "tutorials/linkly/overview",
                   "tutorials/linkly/foundations",
-                  "tutorials/linkly/observability"
+                  "tutorials/linkly/observability",
+                  "tutorials/linkly/persistence"
                 ]
               }
             ]
