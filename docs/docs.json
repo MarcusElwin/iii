@@ -290,7 +290,8 @@
                   "tutorials/linkly/foundations",
                   "tutorials/linkly/observability",
                   "tutorials/linkly/persistence",
-                  "tutorials/linkly/events"
+                  "tutorials/linkly/events",
+                  "tutorials/linkly/scheduling-and-streams"
                 ]
               }
             ]
