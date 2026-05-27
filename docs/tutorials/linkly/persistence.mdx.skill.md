@@ -32,7 +32,7 @@ Its default config writes to a file, so values outlive a restart:
 ```
 
 Now replace the in-memory store. Delete `link-worker/src/store.ts` and add
-`link-worker/src/codes.ts` with just the code generator:
+`link-worker/src/codes.ts`, which holds the code generator:
 
 ```typescript src/codes.ts
 export function makeCode(): string {
@@ -47,14 +47,14 @@ Then rewrite `link::create` and `link::resolve` in `link-worker/src/index.ts` to
 import { registerWorker, Logger } from 'iii-sdk'
 import { makeCode } from './codes.js'
 
-const iii = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
+const worker = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
   workerName: 'link-worker',
 })
 const logger = new Logger()
 
-iii.registerFunction('link::create', async (payload: { url: string; code?: string }) => {
+worker.registerFunction('link::create', async (payload: { url: string; code?: string }) => {
   const code = payload.code ?? makeCode()
-  await iii.trigger({
+  await worker.trigger({
     function_id: 'state::set',
     payload: { scope: 'links', key: code, value: { url: payload.url } },
   })
@@ -62,8 +62,8 @@ iii.registerFunction('link::create', async (payload: { url: string; code?: strin
   return { code, url: payload.url }
 })
 
-iii.registerFunction('link::resolve', async (payload: { code: string }) => {
-  const cached = await iii.trigger<{ scope: string; key: string }, { url: string } | null>({
+worker.registerFunction('link::resolve', async (payload: { code: string }) => {
+  const cached = await worker.trigger<{ scope: string; key: string }, { url: string } | null>({
     function_id: 'state::get',
     payload: { scope: 'links', key: payload.code },
   })
@@ -114,7 +114,7 @@ import { registerWorker, Logger } from 'iii-sdk'
 import type { ApiRequest, ApiResponse } from 'iii-sdk'
 import { makeCode } from './codes.js'
 
-const iii = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
+const worker = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
   workerName: 'link-worker',
 })
 const logger = new Logger()
@@ -123,14 +123,14 @@ const DB = 'primary'
 
 // The database holds the durable record; iii-state is the hot lookup cache.
 async function ensureSchema(): Promise<void> {
-  await iii.trigger({
+  await worker.trigger({
     function_id: 'database::execute',
     payload: {
       db: DB,
       sql: 'CREATE TABLE IF NOT EXISTS links (code TEXT PRIMARY KEY, url TEXT NOT NULL, created_at TEXT NOT NULL)',
     },
   })
-  await iii.trigger({
+  await worker.trigger({
     function_id: 'database::execute',
     payload: {
       db: DB,
@@ -139,9 +139,9 @@ async function ensureSchema(): Promise<void> {
   })
 }
 
-iii.registerFunction('link::create', async (payload: { url: string; code?: string }) => {
+worker.registerFunction('link::create', async (payload: { url: string; code?: string }) => {
   const code = payload.code ?? makeCode()
-  await iii.trigger({
+  await worker.trigger({
     function_id: 'database::execute',
     payload: {
       db: DB,
@@ -149,7 +149,7 @@ iii.registerFunction('link::create', async (payload: { url: string; code?: strin
       params: [code, payload.url, new Date().toISOString()],
     },
   })
-  await iii.trigger({
+  await worker.trigger({
     function_id: 'state::set',
     payload: { scope: 'links', key: code, value: { url: payload.url } },
   })
@@ -157,9 +157,9 @@ iii.registerFunction('link::create', async (payload: { url: string; code?: strin
   return { code, url: payload.url }
 })
 
-iii.registerFunction('link::resolve', async (payload: { code: string }) => {
+worker.registerFunction('link::resolve', async (payload: { code: string }) => {
   // Hot path: read the cache in iii-state.
-  const cached = await iii.trigger<{ scope: string; key: string }, { url: string } | null>({
+  const cached = await worker.trigger<{ scope: string; key: string }, { url: string } | null>({
     function_id: 'state::get',
     payload: { scope: 'links', key: payload.code },
   })
@@ -167,7 +167,7 @@ iii.registerFunction('link::resolve', async (payload: { code: string }) => {
     return { url: cached.url }
   }
   // Cache miss: fall back to the durable table, then warm the cache.
-  const { rows } = await iii.trigger<
+  const { rows } = await worker.trigger<
     { db: string; sql: string; params: string[] },
     { rows: Array<{ url: string }> }
   >({
@@ -176,7 +176,7 @@ iii.registerFunction('link::resolve', async (payload: { code: string }) => {
   })
   const url = rows[0]?.url ?? null
   if (url) {
-    await iii.trigger({
+    await worker.trigger({
       function_id: 'state::set',
       payload: { scope: 'links', key: payload.code, value: { url } },
     })
@@ -184,9 +184,9 @@ iii.registerFunction('link::resolve', async (payload: { code: string }) => {
   return { url }
 })
 
-iii.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiResponse> => {
+worker.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiResponse> => {
   const code = req.path_params.code
-  const { url } = await iii.trigger<{ code: string }, { url: string | null }>({
+  const { url } = await worker.trigger<{ code: string }, { url: string | null }>({
     function_id: 'link::resolve',
     payload: { code },
   })
@@ -199,7 +199,7 @@ iii.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiRespo
   }
   // Record the click as durable history. For now this runs inline, on the
   // redirect's hot path; the next chapter moves it onto a queue.
-  await iii.trigger({
+  await worker.trigger({
     function_id: 'database::execute',
     payload: {
       db: DB,
@@ -210,13 +210,13 @@ iii.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiRespo
   return { status_code: 302, headers: { Location: url } }
 })
 
-iii.registerTrigger({
+worker.registerTrigger({
   type: 'http',
   function_id: 'http::redirect',
   config: { api_path: '/s/:code', http_method: 'GET' },
 })
 
-iii.registerFunction(
+worker.registerFunction(
   'http::create',
   async (req: ApiRequest<{ url?: string; code?: string }>): Promise<ApiResponse> => {
     const { url, code } = req.body ?? {}
@@ -227,7 +227,7 @@ iii.registerFunction(
         headers: { 'Content-Type': 'application/json' },
       }
     }
-    const link = await iii.trigger<{ url: string; code?: string }, { code: string; url: string }>({
+    const link = await worker.trigger<{ url: string; code?: string }, { code: string; url: string }>({
       function_id: 'link::create',
       payload: { url, code },
     })
@@ -239,7 +239,7 @@ iii.registerFunction(
   },
 )
 
-iii.registerTrigger({
+worker.registerTrigger({
   type: 'http',
   function_id: 'http::create',
   config: { api_path: '/links', http_method: 'POST' },

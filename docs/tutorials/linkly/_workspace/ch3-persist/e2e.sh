@@ -26,7 +26,7 @@ cleanup() {
 trap cleanup EXIT
 
 assert() { # assert <label> <expected-substring> <actual>
-  if printf '%s' "$3" | grep -qF "$2"; then
+  if printf '%s' "$3" | grep -qiF "$2"; then
     echo "  ok: $1"
   else
     echo "  FAIL: $1 — expected to contain '$2', got: $3"

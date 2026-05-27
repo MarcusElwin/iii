@@ -4,6 +4,12 @@
 set -euo pipefail
 HTTP="http://127.0.0.1:3111"
 
+expect_code() { # expect_code <want> <curl args...>
+  local want="$1"; shift
+  local got; got="$(curl -s -o /dev/null -w '%{http_code}' "$@")"
+  [ "$got" = "$want" ] || { echo "expected $want, got $got for: $*" >&2; exit 1; }
+}
+
 seed() {
   curl -s -X POST "$HTTP/links" -H 'Content-Type: application/json' \
     -d '{"url":"https://iii.dev","code":"iii"}' >/dev/null
@@ -19,6 +25,6 @@ if [ "$(curl -s -o /dev/null -w '%{http_code}' "$HTTP/s/iii")" = "404" ]; then
   seed
 fi
 
-for _ in $(seq 1 10); do curl -s -o /dev/null "$HTTP/s/iii"; done
-curl -s -o /dev/null "$HTTP/s/missing"
-echo "seeded: 1 create (201), 10 redirects (302), 1 miss (404)"
+for _ in $(seq 1 10); do expect_code 302 "$HTTP/s/iii"; done
+expect_code 404 "$HTTP/s/missing"
+echo "seeded: 1 create, 10 redirects (302), 1 miss (404)"

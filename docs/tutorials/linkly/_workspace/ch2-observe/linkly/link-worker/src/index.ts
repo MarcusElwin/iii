@@ -2,7 +2,7 @@ import { registerWorker, Logger } from 'iii-sdk'
 import type { ApiRequest, ApiResponse } from 'iii-sdk'
 import { LinkStore } from './store.js'
 
-const iii = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
+const worker = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
   workerName: 'link-worker',
 })
 const logger = new Logger()
@@ -10,13 +10,13 @@ const store = new LinkStore()
 
 // --- Domain functions: callable with `iii trigger` ---
 
-iii.registerFunction('link::create', async (payload: { url: string; code?: string }) => {
+worker.registerFunction('link::create', async (payload: { url: string; code?: string }) => {
   const link = store.create(payload.url, payload.code)
   logger.info('link created', link)
   return link
 })
 
-iii.registerFunction('link::resolve', async (payload: { code: string }) => {
+worker.registerFunction('link::resolve', async (payload: { code: string }) => {
   const url = store.resolve(payload.code)
   logger.info('link resolved', { code: payload.code, found: url !== undefined })
   return { url: url ?? null }
@@ -24,9 +24,9 @@ iii.registerFunction('link::resolve', async (payload: { code: string }) => {
 
 // --- HTTP edge: added after `iii worker add iii-http` ---
 
-iii.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiResponse> => {
+worker.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiResponse> => {
   const code = req.path_params.code
-  const { url } = await iii.trigger<{ code: string }, { url: string | null }>({
+  const { url } = await worker.trigger<{ code: string }, { url: string | null }>({
     function_id: 'link::resolve',
     payload: { code },
   })
@@ -40,13 +40,13 @@ iii.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiRespo
   return { status_code: 302, headers: { Location: url } }
 })
 
-iii.registerTrigger({
+worker.registerTrigger({
   type: 'http',
   function_id: 'http::redirect',
   config: { api_path: '/s/:code', http_method: 'GET' },
 })
 
-iii.registerFunction(
+worker.registerFunction(
   'http::create',
   async (req: ApiRequest<{ url?: string; code?: string }>): Promise<ApiResponse> => {
     const { url, code } = req.body ?? {}
@@ -57,7 +57,7 @@ iii.registerFunction(
         headers: { 'Content-Type': 'application/json' },
       }
     }
-    const link = await iii.trigger<{ url: string; code?: string }, { code: string; url: string }>({
+    const link = await worker.trigger<{ url: string; code?: string }, { code: string; url: string }>({
       function_id: 'link::create',
       payload: { url, code },
     })
@@ -69,7 +69,7 @@ iii.registerFunction(
   },
 )
 
-iii.registerTrigger({
+worker.registerTrigger({
   type: 'http',
   function_id: 'http::create',
   config: { api_path: '/links', http_method: 'POST' },

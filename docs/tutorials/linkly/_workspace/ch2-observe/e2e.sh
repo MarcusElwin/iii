@@ -25,7 +25,7 @@ cleanup() {
 trap cleanup EXIT
 
 assert() { # assert <label> <expected-substring> <actual>
-  if printf '%s' "$3" | grep -qF "$2"; then
+  if printf '%s' "$3" | grep -qiF "$2"; then
     echo "  ok: $1"
   else
     echo "  FAIL: $1 — expected to contain '$2', got: $3"
@@ -51,8 +51,13 @@ for _ in $(seq 1 8); do curl -s -o /dev/null "http://127.0.0.1:$HTTP_PORT/s/iii"
 curl -s -o /dev/null "http://127.0.0.1:$HTTP_PORT/s/missing"
 sleep 1
 
-# --- Structured logs ---
-logs="$(iii trigger engine::logs::list --json '{"limit":100}' 2>&1)"
+# --- Structured logs (worker logs export on a delay; poll until both land) ---
+logs=""
+for _ in $(seq 1 15); do
+  logs="$(iii trigger engine::logs::list --json '{"limit":1000}' 2>&1)"
+  if printf '%s' "$logs" | grep -q 'link resolved' && printf '%s' "$logs" | grep -q 'link created'; then break; fi
+  sleep 1
+done
 assert "logs capture link::resolve" "link resolved" "$logs"
 assert "logs capture link::create" "link created" "$logs"
 

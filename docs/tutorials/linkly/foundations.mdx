@@ -27,6 +27,15 @@ cd linkly
 This writes a `config.yaml` (already containing `iii-observability` and `iii-queue`) and a `.iii/`
 directory that identifies the project.
 
+## Add the HTTP worker
+
+Later in this chapter you serve `link-worker` over HTTP, which the `iii-http` worker provides. Add it
+now so it is ready when you register routes:
+
+```bash
+iii worker add iii-http
+```
+
 ## Create the link-worker
 
 Scaffold a TypeScript worker inside the project:
@@ -73,7 +82,7 @@ scripts:
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "iii-sdk": "^0.11.6"
+    "iii-sdk": "^0.13.0"
   },
   "devDependencies": {
     "tsx": "^4.21.0",
@@ -117,19 +126,19 @@ else on the engine can call:
 import { registerWorker, Logger } from 'iii-sdk'
 import { LinkStore } from './store.js'
 
-const iii = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
+const worker = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
   workerName: 'link-worker',
 })
 const logger = new Logger()
 const store = new LinkStore()
 
-iii.registerFunction('link::create', async (payload: { url: string; code?: string }) => {
+worker.registerFunction('link::create', async (payload: { url: string; code?: string }) => {
   const link = store.create(payload.url, payload.code)
   logger.info('link created', link)
   return link
 })
 
-iii.registerFunction('link::resolve', async (payload: { code: string }) => {
+worker.registerFunction('link::resolve', async (payload: { code: string }) => {
   const url = store.resolve(payload.code)
   return { url: url ?? null }
 })
@@ -213,23 +222,19 @@ iii trigger link::resolve code=nope
 ## Expose it over HTTP
 
 A function becomes an HTTP endpoint when you bind it to an `http` trigger. That trigger type is
-served by the `iii-http` worker, so add it first:
-
-```bash
-iii worker add iii-http
-```
+served by the `iii-http` worker you added at the start of the chapter.
 
 Now add an HTTP edge to `link-worker/src/index.ts`. An HTTP handler receives an `ApiRequest` (path
 parameters in `req.path_params`, the parsed JSON body in `req.body`) and returns an `ApiResponse`.
-These handlers read the request, call your domain functions through the engine with `iii.trigger`,
+These handlers read the request, call your domain functions through the engine with `worker.trigger`,
 and shape the response. Add the imports and the two handlers below:
 
 ```typescript src/index.ts
 import type { ApiRequest, ApiResponse } from 'iii-sdk'
 
-iii.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiResponse> => {
+worker.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiResponse> => {
   const code = req.path_params.code
-  const { url } = await iii.trigger<{ code: string }, { url: string | null }>({
+  const { url } = await worker.trigger<{ code: string }, { url: string | null }>({
     function_id: 'link::resolve',
     payload: { code },
   })
@@ -243,13 +248,13 @@ iii.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiRespo
   return { status_code: 302, headers: { Location: url } }
 })
 
-iii.registerTrigger({
+worker.registerTrigger({
   type: 'http',
   function_id: 'http::redirect',
   config: { api_path: '/s/:code', http_method: 'GET' },
 })
 
-iii.registerFunction(
+worker.registerFunction(
   'http::create',
   async (req: ApiRequest<{ url?: string; code?: string }>): Promise<ApiResponse> => {
     const { url, code } = req.body ?? {}
@@ -260,7 +265,7 @@ iii.registerFunction(
         headers: { 'Content-Type': 'application/json' },
       }
     }
-    const link = await iii.trigger<{ url: string; code?: string }, { code: string; url: string }>({
+    const link = await worker.trigger<{ url: string; code?: string }, { code: string; url: string }>({
       function_id: 'link::create',
       payload: { url, code },
     })
@@ -272,7 +277,7 @@ iii.registerFunction(
   },
 )
 
-iii.registerTrigger({
+worker.registerTrigger({
   type: 'http',
   function_id: 'http::create',
   config: { api_path: '/links', http_method: 'POST' },

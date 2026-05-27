@@ -21,13 +21,22 @@ automatically:
 
 You read both with `engine::*` functions over `iii trigger`. No extra setup.
 
+## Add the console
+
+This chapter also uses the iii console, a browser UI for inspecting the engine. You open it at the end
+of the chapter; add it now so it is ready:
+
+```bash
+iii worker add console
+```
+
 ## Log the resolve
 
 `link::create` already logs. Add a matching line to `link::resolve` so every lookup is recorded. Edit
 `link-worker/src/index.ts`:
 
 ```typescript src/index.ts
-iii.registerFunction('link::resolve', async (payload: { code: string }) => {
+worker.registerFunction('link::resolve', async (payload: { code: string }) => {
   const url = store.resolve(payload.code)
   logger.info('link resolved', { code: payload.code, found: url !== undefined })
   return { url: url ?? null }
@@ -117,15 +126,10 @@ which hop is responsible.
 
 ## Open the console
 
-Reading telemetry from the command line is fine for one trace. For a live view, add the console:
-
-```bash
-iii worker add console
-```
-
-It serves at [http://127.0.0.1:3113](http://127.0.0.1:3113). Open it to browse registered functions
-and triggers, watch invocations as they happen, and click into any trace to see the same waterfall you
-just walked, without leaving the page.
+Reading observability data from the command line is fine for one trace. For a live view, open the
+console you added at the start at [http://127.0.0.1:3113](http://127.0.0.1:3113). It lists registered
+functions and triggers, shows invocations as they happen, and lets you click into any trace to see the
+same waterfall you walked, without leaving the page.
 
 {/* TODO(validation): console UI inspected by serving check only (not driven in a browser here); re-verify the trace view once the span-status fix lands so redirects no longer show as errors. */}
 
