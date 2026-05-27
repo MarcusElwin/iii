@@ -282,7 +282,8 @@
                 "group": "Tutorials",
                 "pages": [
                   "tutorials/linkly/overview",
-                  "tutorials/linkly/foundations"
+                  "tutorials/linkly/foundations",
+                  "tutorials/linkly/observability"
                 ]
               }
             ]
