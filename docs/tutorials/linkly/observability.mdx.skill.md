@@ -99,6 +99,8 @@ time: the view you reach for when a link feels slow.
   or two. Give it a moment, or read a slightly older trace.
 </Note>
 
+{/* TODO(validation): the worker-span export delay is being addressed; revisit this Note (and the polling in the e2e) once worker spans flush promptly. */}
+
 ## Find the slowest links
 
 To compare many requests, list the redirect spans sorted by duration, slowest first:

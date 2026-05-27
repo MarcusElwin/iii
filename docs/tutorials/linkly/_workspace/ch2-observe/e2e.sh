@@ -60,6 +60,8 @@ assert "logs capture link::create" "link created" "$logs"
 # Worker-side spans export on a delay, so a fresh redirect's trace can look
 # truncated for a second or two. Poll recent redirect traces until one shows the
 # full chain (down to link::resolve).
+# TODO(re-verify after engine fix): the worker-span export delay is being addressed;
+# once spans flush promptly, this poll can collapse to a single lookup.
 tree=""
 for _ in $(seq 1 20); do
   ids="$(iii trigger engine::traces::list --json '{"name":"GET /s/:code","limit":12}' 2>/dev/null \
