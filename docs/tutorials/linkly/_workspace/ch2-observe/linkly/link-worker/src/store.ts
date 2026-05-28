@@ -14,6 +14,7 @@ export class LinkStore {
   }
 
   private makeCode(): string {
-    return Math.random().toString(36).slice(2, 8)
+    const c = "abcdefghijklmnopqrstuvwxyz0123456789"
+    return Array.from({ length: 6 }, () => c[Math.floor(Math.random() * c.length)]).join("")
   }
 }

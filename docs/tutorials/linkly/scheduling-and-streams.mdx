@@ -193,6 +193,9 @@ iii trigger link::daily_digest
 iii trigger stream::list stream_name=clicks group_id=all
 ```
 
+Clicks are queued (Chapter 4), so the count catches up after the queue drains. If the digest
+shows fewer than 3 right after the redirects, wait a second and re-run it:
+
 ```json
 { "top": [{ "code": "keep", "clicks": 3 }] }
 ```

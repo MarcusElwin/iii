@@ -1,3 +1,9 @@
+const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789'
+
 export function makeCode(): string {
-  return Math.random().toString(36).slice(2, 8)
+  let s = ''
+  for (let i = 0; i < 6; i++) {
+    s += CHARS[Math.floor(Math.random() * CHARS.length)]
+  }
+  return s
 }

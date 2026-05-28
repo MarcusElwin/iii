@@ -127,8 +127,8 @@ which hop is responsible.
 
 Reading observability data from the command line is fine for one trace. For a live view, open the
 console you added at the start at [http://127.0.0.1:3113](http://127.0.0.1:3113). It lists registered
-functions and triggers, shows invocations as they happen, and lets you click into any trace to see the
-same waterfall you walked, without leaving the page.
+workers, triggers, and functions, shows invocations as they happen, and lets you click into any trace
+to see the same waterfall you walked, without leaving the page.
 
 {/* TODO(validation): console UI inspected by serving check only (not driven in a browser here); re-verify the trace view once the span-status fix lands so redirects no longer show as errors. */}
 

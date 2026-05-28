@@ -31,7 +31,7 @@ wait_for_port() { for _ in $(seq 1 "$2"); do lsof -i "tcp:$1" >/dev/null 2>&1 &&
 q() { iii trigger "$1" --json "$2" 2>&1; }
 poll_assert() {
   local label="$1" want="$2" fn="$3" body="$4" out=""
-  for _ in $(seq 1 20); do out="$(q "$fn" "$body")"; printf '%s' "$out" | grep -qF "$want" && { echo "  ok: $label"; return; }; sleep 1; done
+  for _ in $(seq 1 20); do out="$(q "$fn" "$body" || true)"; printf '%s' "$out" | grep -qF "$want" && { echo "  ok: $label"; return; }; sleep 1; done
   echo "  FAIL: $label — expected '$want', got: $out"; fail=1
 }
 

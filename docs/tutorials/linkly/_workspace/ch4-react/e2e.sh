@@ -37,7 +37,7 @@ q() { iii trigger "$1" --json "$2" 2>&1; }
 poll_assert() {
   local label="$1" want="$2" fn="$3" body="$4" out=""
   for _ in $(seq 1 15); do
-    out="$(q "$fn" "$body")"
+    out="$(q "$fn" "$body" || true)"
     printf '%s' "$out" | grep -qF "$want" && { echo "  ok: $label"; return; }
     sleep 1
   done

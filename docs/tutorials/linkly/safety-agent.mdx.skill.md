@@ -434,7 +434,7 @@ worker.registerFunction(
 )
 ```
 
-The server-side `link::request_delete` no longer does the delete itself; it just relays the
+The server-side `link::request_delete` no longer does the delete itself; it relays the
 operator's decision back to the agent:
 
 ```typescript src/index.ts {6}

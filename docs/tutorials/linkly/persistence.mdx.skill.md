@@ -35,8 +35,14 @@ Now replace the in-memory store. Delete `link-worker/src/store.ts` and add
 `link-worker/src/codes.ts`, which holds the code generator:
 
 ```typescript src/codes.ts
+const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789'
+
 export function makeCode(): string {
-  return Math.random().toString(36).slice(2, 8)
+  let s = ''
+  for (let i = 0; i < 6; i++) {
+    s += CHARS[Math.floor(Math.random() * CHARS.length)]
+  }
+  return s
 }
 ```
 
