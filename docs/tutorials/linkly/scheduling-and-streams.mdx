@@ -9,10 +9,6 @@ In this chapter you add two time-aware capabilities. With `iii-cron` you run fun
 a nightly sweep of expired links and a daily top-links digest. With `iii-stream` you push every click
 to subscribers in real time, so the browser you build next can show a live counter.
 
-## Prerequisites
-
-- Chapter 4 complete, with the engine running.
-
 ## Add the workers
 
 This chapter uses two new workers. Add both now:
@@ -25,9 +21,9 @@ iii worker add iii-stream
 ## Give links an expiry
 
 A sweep needs something to sweep, so let links carry an optional expiry. Add an `expires_at` column to
-the `links` table in `ensureSchema`:
+the `links` table in `ensureSchema` — only the SQL string changes:
 
-```typescript src/index.ts {1-7}
+```typescript src/index.ts {5}
 await worker.trigger({
   function_id: 'database::execute',
   payload: {
@@ -37,9 +33,10 @@ await worker.trigger({
 })
 ```
 
-Accept `expires_at` in `link::create` and store it (it stays `null` for links that never expire):
+Accept `expires_at` in `link::create` and store it (it stays `null` for links that never expire). The
+existing body stays put; the signature, SQL, and params each pick up the new column:
 
-```typescript src/index.ts {1-21}
+```typescript src/index.ts {3,9,10}
 worker.registerFunction(
   'link::create',
   async (payload: { url: string; code?: string; expires_at?: string }) => {
@@ -66,10 +63,10 @@ worker.registerFunction(
 ## Sweep expired links nightly
 
 Write a function that deletes expired links from the database and evicts them from the cache, then
-bind it to a `cron` trigger. The expression has six fields starting with **seconds** (`0 0 3 * * *` is
-03:00 every day):
+bind it to a `cron` trigger. The expression has **seven** fields starting with **seconds** and ending
+with **year** (`0 0 3 * * * *` is 03:00 every day, any year):
 
-```typescript src/index.ts {1-25}
+```typescript src/index.ts
 worker.registerFunction('link::sweep_expired', async () => {
   const now = new Date().toISOString()
   const { rows } = await worker.trigger<
@@ -93,17 +90,21 @@ worker.registerFunction('link::sweep_expired', async () => {
 worker.registerTrigger({
   type: 'cron',
   function_id: 'link::sweep_expired',
-  config: { expression: '0 0 3 * * *' },
+  // Production: 03:00 every day, any year.
+  // For testing, swap in the commented every-3-minutes expression below.
+  config: { expression: '0 0 3 * * * *' },
+  // config: { expression: '0 */3 * * * * *' }, // every 3 minutes — for testing
 })
 ```
 
-The cron schedule runs it nightly, but it is an ordinary function, so you can run it on demand to test.
+The cron schedule runs it nightly, but it is an ordinary function, so you can also run it on demand
+to test. Swap the commented expression in if you'd rather watch it fire on a few-minute cadence.
 
 ## Build a daily digest
 
 A second scheduled job ranks the most-clicked links and logs them:
 
-```typescript src/index.ts {1-20}
+```typescript src/index.ts
 worker.registerFunction('link::daily_digest', async () => {
   const { rows } = await worker.trigger<
     { db: string; sql: string },
@@ -122,16 +123,19 @@ worker.registerFunction('link::daily_digest', async () => {
 worker.registerTrigger({
   type: 'cron',
   function_id: 'link::daily_digest',
-  config: { expression: '0 0 9 * * *' },
+  // Production: 09:00 every day, any year.
+  config: { expression: '0 0 9 * * * *' },
+  // config: { expression: '0 */3 * * * * *' }, // every 3 minutes — for testing
 })
 ```
 
 ## Stream live clicks
 
 `iii-stream` carries data that subscribers receive over a WebSocket the moment it changes. Publish
-each click to a `clicks` stream from `link::record_click`, alongside the durable write:
+each click to a `clicks` stream from `link::record_click`, alongside the durable write — only the new
+`stream::set` call is added; the surrounding function is unchanged from Chapter 4:
 
-```typescript src/index.ts {1-21}
+```typescript src/index.ts {10-19}
 worker.registerFunction('link::record_click', async (payload: { code: string; clicked_at: string }) => {
   await worker.trigger({
     function_id: 'database::execute',

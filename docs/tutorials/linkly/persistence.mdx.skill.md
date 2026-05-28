@@ -3,13 +3,9 @@
 # Ch. 3: Persist everything
 
 
-So far `link-worker` keeps its links in an in-memory `Map`, so a restart loses every link. In this
+So far the `link` worker keeps its links in an in-memory `Map`, so a restart loses every link. In this
 chapter you move that data out of the worker: first into `iii-state` as a hot cache that survives
 restarts, then into a `database` (SQLite) that holds the durable record of links and every click.
-
-## Prerequisites
-
-- Chapter 2 complete, with the engine running.
 
 ## Move the map into state
 
@@ -31,8 +27,8 @@ Its default config writes to a file, so values outlive a restart:
           file_path: ./data/state_store.db
 ```
 
-Now replace the in-memory store. Delete `link-worker/src/store.ts` and add
-`link-worker/src/codes.ts`, which holds the code generator:
+Now replace the in-memory store. Delete `link/src/store.ts` and add
+`link/src/codes.ts`, which holds the code generator:
 
 ```typescript src/codes.ts
 const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789'
@@ -46,7 +42,7 @@ export function makeCode(): string {
 }
 ```
 
-Then rewrite `link::create` and `link::resolve` in `link-worker/src/index.ts` to read and write
+Then rewrite `link::create` and `link::resolve` in `link/src/index.ts` to read and write
 `iii-state` instead of the `Map`. A value is stored under a `scope` (`links`) and a `key` (the code):
 
 ```typescript src/index.ts {1-25}
@@ -54,7 +50,7 @@ import { registerWorker, Logger } from 'iii-sdk'
 import { makeCode } from './codes.js'
 
 const worker = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
-  workerName: 'link-worker',
+  workerName: 'link',
 })
 const logger = new Logger()
 
@@ -81,7 +77,7 @@ Save the file. Create a link, then restart the worker and resolve it again:
 
 ```bash
 iii trigger link::create url=https://iii.dev code=iii
-iii worker restart link-worker
+iii worker restart link
 iii trigger link::resolve code=iii
 ```
 
@@ -113,7 +109,7 @@ Point it at a SQLite file (no server to run):
 The worker owns its schema. On startup it creates the two tables if they do not exist, then
 `link::create` writes to both the database (durable) and state (hot cache), `link::resolve` falls back
 to the database on a cache miss and warms the cache, and a redirect records a click. Here is the full
-`link-worker/src/index.ts`:
+`link/src/index.ts`:
 
 ```typescript src/index.ts {1-138}
 import { registerWorker, Logger } from 'iii-sdk'
@@ -121,7 +117,7 @@ import type { ApiRequest, ApiResponse } from 'iii-sdk'
 import { makeCode } from './codes.js'
 
 const worker = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
-  workerName: 'link-worker',
+  workerName: 'link',
 })
 const logger = new Logger()
 
@@ -252,7 +248,7 @@ worker.registerTrigger({
 })
 
 ensureSchema()
-  .then(() => console.info('link-worker ready'))
+  .then(() => console.info('link ready'))
   .catch((err) => console.error('schema init failed', err))
 ```
 

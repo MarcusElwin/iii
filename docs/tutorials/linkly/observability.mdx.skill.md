@@ -7,10 +7,6 @@ In this chapter you instrument the redirect path with a log line, then use iii's
 observability to read structured logs, follow a single redirect as a distributed trace across
 workers, and open the console to watch invocations live.
 
-## Prerequisites
-
-- Chapter 1 complete: the `linkly` project with `link-worker` and `iii-http`, and the engine running.
-
 ## Observability is already on
 
 When you ran `iii project init`, it added `iii-observability` to `config.yaml`. It does two things
@@ -33,7 +29,7 @@ iii worker add console
 ## Log the resolve
 
 `link::create` already logs. Add a matching line to `link::resolve` so every lookup is recorded. Edit
-`link-worker/src/index.ts`:
+`link/src/index.ts`:
 
 ```typescript src/index.ts {1-5}
 worker.registerFunction('link::resolve', async (payload: { code: string }) => {
@@ -99,7 +95,7 @@ GET /s/:code                         (iii)      1.466 ms
           call link::resolve         (iii-node) 0.124 ms
 ```
 
-That is the redirect arriving through `iii-http`, calling `http::redirect` in `link-worker`, which
+That is the redirect arriving through `iii-http`, calling `http::redirect` in `link`, which
 calls `link::resolve` back through the engine. The per-span timing shows where the request spends its
 time: the view you reach for when a link feels slow.
 

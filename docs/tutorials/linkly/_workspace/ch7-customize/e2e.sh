@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Ch7 end-to-end validation (NOT user-facing). Each link can carry a Node.js
-# rule script; on every redirect link-worker boots a node sandbox, pipes the
+# rule script; on every redirect link boots a node sandbox, pipes the
 # request as JSON on stdin, and uses the rule's `chosen_url`. Assertions:
 # geo-routing rule, A/B split rule, fallback when there is no rule, and host
 # isolation (host paths are unreachable from inside the sandbox).
@@ -43,7 +43,7 @@ iii > "$LOG" 2>&1 &
 ENGINE_PID=$!
 wait_for_port "$TRUSTED_PORT" 60 || { echo "trusted listener never opened"; cat "$LOG"; exit 1; }
 wait_for_port "$HTTP_PORT" 60 || { echo "iii-http never opened"; cat "$LOG"; exit 1; }
-iii worker restart link-worker >/dev/null 2>&1 || true
+iii worker restart link >/dev/null 2>&1 || true
 sleep 3
 
 # Helper: get the Location header from a single redirect (no follow).

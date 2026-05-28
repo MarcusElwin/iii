@@ -50,7 +50,7 @@ wait_for_port "$TRUSTED_PORT" 60 || { echo "trusted listener never opened"; cat 
 wait_for_port "$BROWSER_PORT" 60 || { echo "browser listener never opened"; cat "$LOG"; exit 1; }
 wait_for_port "$HTTP_PORT" 60 || { echo "iii-http never opened"; cat "$LOG"; exit 1; }
 wait_for_port "$STREAM_PORT" 60 || { echo "iii-stream never opened"; cat "$LOG"; exit 1; }
-iii worker restart link-worker >/dev/null 2>&1 || true
+iii worker restart link >/dev/null 2>&1 || true
 sleep 3
 
 # Sanity: local workers still reachable on the trusted port (RBAC must not gate them).

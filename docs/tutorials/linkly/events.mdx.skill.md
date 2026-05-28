@@ -8,10 +8,6 @@ In this chapter you move click recording onto a **queue** so redirects return im
 **pub/sub** to broadcast link events to independent subscribers: a Python analytics worker and a cache
 refresher, neither of which the publisher knows about.
 
-## Prerequisites
-
-- Chapter 3 complete, with the engine running.
-
 ## Add the workers
 
 This chapter uses two workers. `iii-queue` is already in your project from `iii project init`. Add
@@ -38,7 +34,7 @@ iii worker add iii-pubsub
 ```
 
 Add a consumer function that does the database write, and import `TriggerAction`. In
-`link-worker/src/index.ts`:
+`link/src/index.ts`:
 
 ```typescript src/index.ts {1-13}
 import { registerWorker, Logger, TriggerAction } from 'iii-sdk'
@@ -148,7 +144,7 @@ worker.registerTrigger({
 
 The second subscriber counts links as they are created. It is a separate concern, so write it as a
 separate worker, in Python, to show workers in different languages sharing one bus. Create
-`analytics-worker/main.py`:
+`analytics/main.py`:
 
 ```python main.py
 import os
@@ -158,15 +154,14 @@ from iii import register_worker, InitOptions, Logger
 
 worker = register_worker(
     os.environ.get("III_URL", "ws://localhost:49134"),
-    InitOptions(worker_name="analytics-worker"),
+    InitOptions(worker_name="analytics"),
 )
 logger = Logger()
 
 DB = "primary"
 
-
 def on_link_created(data: dict) -> dict:
-    """Runs whenever link-worker publishes `link.created`. Counts links per day."""
+    """Runs whenever link publishes `link.created`. Counts links per day."""
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     worker.trigger(
         {
@@ -182,7 +177,6 @@ def on_link_created(data: dict) -> dict:
     logger.info(f"counted new link {data.get('code')} for {day}")
     return {"ok": True}
 
-
 worker.register_function("analytics::on_link_created", on_link_created)
 worker.register_trigger(
     {
@@ -195,10 +189,10 @@ worker.register_trigger(
 print("Analytics worker started")
 ```
 
-It needs an `analytics-worker/iii.worker.yaml`:
+It needs an `analytics/iii.worker.yaml`:
 
 ```yaml iii.worker.yaml {1-8}
-name: analytics-worker
+name: analytics
 runtime:
   kind: python
   package_manager: pip
@@ -208,7 +202,7 @@ scripts:
   start: "watchfiles 'python main.py'"
 ```
 
-And an `analytics-worker/requirements.txt`:
+And an `analytics/requirements.txt`:
 
 ```text requirements.txt
 iii-sdk==0.13.0
@@ -216,7 +210,7 @@ watchfiles
 ```
 
 The `daily_link_counts` table is created alongside the others, so add it to `ensureSchema` in
-`link-worker`:
+`link`:
 
 ```typescript src/index.ts {1-7}
 await worker.trigger({
@@ -236,8 +230,8 @@ Finally, declare `iii-pubsub` and the new worker in `config.yaml`:
       adapter:
         name: local
 
-  - name: analytics-worker
-    worker_path: ./analytics-worker
+  - name: analytics
+    worker_path: ./analytics
 ```
 
 ## See it work
@@ -265,7 +259,7 @@ iii trigger database::query db=primary sql="SELECT day, count FROM daily_link_co
 ## Conclusion
 
 Redirects no longer wait on a database write: clicks ride a queue, drained in the background. Link
-events fan out over pub/sub to a Python analytics counter and a cache refresher, and `link-worker`
+events fan out over pub/sub to a Python analytics counter and a cache refresher, and the `link` worker
 does not know either of them exists. Next, in
 [Ch. 5: Schedule and stream](/tutorials/linkly/scheduling-and-streams), you sweep expired links on a schedule
 and stream live clicks to the browser.

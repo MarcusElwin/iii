@@ -45,7 +45,7 @@ wait_for_port "$SDK_PORT" 40 || { echo "engine did not open $SDK_PORT"; cat "$LO
 wait_for_port "$HTTP_PORT" 60 || { echo "iii-http did not open $HTTP_PORT"; cat "$LOG"; exit 1; }
 
 # Bind the http triggers and (re)run ensureSchema with the database ready.
-iii worker restart link-worker >/dev/null 2>&1 || true
+iii worker restart link >/dev/null 2>&1 || true
 sleep 3
 
 # --- Create writes to both the durable table and the hot cache ---
@@ -72,7 +72,7 @@ assert "cache is warmed after the DB hit" "https://example.org" \
   "$(q state::get '{"scope":"links","key":"dbonly"}')"
 
 # --- Links survive a worker restart (no longer in worker memory) ---
-iii worker restart link-worker >/dev/null 2>&1 || true
+iii worker restart link >/dev/null 2>&1 || true
 sleep 2
 assert "links survive a worker restart" "https://iii.dev" \
   "$(q link::resolve '{"code":"iii"}')"

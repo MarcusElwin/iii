@@ -43,7 +43,7 @@ wait_for_port "$HTTP_PORT" 60 || { echo "iii-http did not open $HTTP_PORT"; cat 
 wait_for_port "$CONSOLE_PORT" 60 || { echo "console did not open $CONSOLE_PORT"; cat "$LOG"; exit 1; }
 
 # Bind the http triggers (cold-boot race), then drive redirect traffic.
-iii worker restart link-worker >/dev/null 2>&1 || true
+iii worker restart link >/dev/null 2>&1 || true
 sleep 2
 curl -s -X POST "http://127.0.0.1:$HTTP_PORT/links" -H 'Content-Type: application/json' \
   -d '{"url":"https://iii.dev","code":"iii"}' >/dev/null

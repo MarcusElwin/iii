@@ -8,11 +8,6 @@ them back to URLs, callable first from the command line and then over HTTP. By t
 a working web service where `POST /links` mints a short code and `GET /s/:code` redirects to the
 original URL.
 
-## Prerequisites
-
-- iii installed and on your `PATH`. See [Install](/install).
-- Node.js 20 or later, for the TypeScript worker.
-
 ## Create the project
 
 A project is a directory with a `config.yaml` that lists the workers the engine runs. Create one:
@@ -27,31 +22,31 @@ directory that identifies the project.
 
 ## Add the HTTP worker
 
-Later in this chapter you serve `link-worker` over HTTP, which the `iii-http` worker provides. Add it
+Later in this chapter you serve the `link` worker over HTTP, which the `iii-http` worker provides. Add it
 now so it is ready when you register routes:
 
 ```bash
 iii worker add iii-http
 ```
 
-## Create the link-worker
+## Create the link worker
 
 Scaffold a TypeScript worker inside the project:
 
 ```bash
-iii worker init link-worker --language typescript
+iii worker init link --language typescript
 ```
 
 {/* TODO(validation): iii worker init is broken in 0.13.0 (worker-bare template missing iii.worker.yaml). Files below are hand-verified against a live engine; re-confirm scaffold output once init is fixed. */}
 
-A worker is a self-contained service. Here, `link-worker` is a Node package. Replace its scaffolded
+A worker is a self-contained service. Here, the `link` worker is a Node package. Replace its scaffolded
 files with the four below.
 
-`link-worker/iii.worker.yaml` describes how the worker builds and runs itself: the command to install
+`link/iii.worker.yaml` describes how the worker builds and runs itself: the command to install
 dependencies and the command to start.
 
 ```yaml iii.worker.yaml
-name: link-worker
+name: link
 runtime:
   kind: typescript
   package_manager: npm
@@ -66,11 +61,11 @@ scripts:
   also start it yourself and let it connect to the engine over WebSocket.
 </Info>
 
-`link-worker/package.json` pulls in the iii SDK and a dev runner:
+`link/package.json` pulls in the iii SDK and a dev runner:
 
 ```json package.json
 {
-  "name": "link-worker",
+  "name": "link",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -91,7 +86,7 @@ scripts:
 ```
 
 Linkly turns a short code into a long URL, so the worker needs somewhere to keep that mapping. For
-now `link-worker/src/store.ts` keeps it in memory, the simplest thing that works (a later chapter
+now `link/src/store.ts` keeps it in memory, the simplest thing that works (a later chapter
 makes it durable):
 
 ```typescript src/store.ts
@@ -117,7 +112,7 @@ export class LinkStore {
 }
 ```
 
-`link-worker/src/index.ts` is the worker's entry point. `registerWorker` opens the connection to the
+`link/src/index.ts` is the worker's entry point. `registerWorker` opens the connection to the
 engine, and `registerFunction` publishes a function under a name like `link::create` that anything
 else on the engine can call:
 
@@ -126,7 +121,7 @@ import { registerWorker, Logger } from 'iii-sdk'
 import { LinkStore } from './store.js'
 
 const worker = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
-  workerName: 'link-worker',
+  workerName: 'link',
 })
 const logger = new Logger()
 const store = new LinkStore()
@@ -142,28 +137,28 @@ worker.registerFunction('link::resolve', async (payload: { code: string }) => {
   return { url: url ?? null }
 })
 
-console.info('link-worker ready')
+console.info('link ready')
 ```
 
 ## Register the worker
 
 `iii worker init` scaffolds the worker but leaves your project untouched. The engine runs the workers
-listed in `config.yaml`, so declare `link-worker` there. Add it to the `workers:` list:
+listed in `config.yaml`, so declare the `link` worker there. Add it to the `workers:` list:
 
 ```yaml config.yaml {1-2}
-  - name: link-worker
-    worker_path: ./link-worker
+  - name: link
+    worker_path: ./link
 ```
 
 <Note>
   `iii worker add` works for any worker, local or remote. In this tutorial you manage your own workers
-  directly instead: declare `link-worker` in `config.yaml` and use `iii worker start`, `stop`, and
+  directly instead: declare the `link` worker in `config.yaml` and use `iii worker start`, `stop`, and
   `restart`. You will use `iii worker add` for off-the-shelf workers like `iii-http`.
 </Note>
 
 ## Start the engine
 
-From the project root, start the engine. It reads `config.yaml`, installs and starts `link-worker`,
+From the project root, start the engine. It reads `config.yaml`, installs and starts `link`,
 and registers its functions:
 
 ```bash
@@ -171,7 +166,7 @@ iii
 ```
 
 You do not run `npm install` yourself: the engine runs the worker's `install` script the first time it
-starts the worker. You will see `link-worker` register `link::create` and `link::resolve`. Leave the
+starts the worker. You will see the `link` worker register `link::create` and `link::resolve`. Leave the
 engine running and open a second terminal for the next steps.
 
 ## Call the functions
@@ -223,7 +218,7 @@ iii trigger link::resolve code=nope
 A function becomes an HTTP endpoint when you bind it to an `http` trigger. That trigger type is
 served by the `iii-http` worker you added at the start of the chapter.
 
-Now add an HTTP edge to `link-worker/src/index.ts`. An HTTP handler receives an `ApiRequest` (path
+Now add an HTTP edge to `link/src/index.ts`. An HTTP handler receives an `ApiRequest` (path
 parameters in `req.path_params`, the parsed JSON body in `req.body`) and returns an `ApiResponse`.
 These handlers read the request, call your domain functions through the engine with `worker.trigger`,
 and shape the response. Add the imports and the two handlers below:

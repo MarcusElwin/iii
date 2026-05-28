@@ -63,7 +63,7 @@ for _ in $(seq 1 90); do
   fi
   sleep 1
 done
-iii worker restart link-worker >/dev/null 2>&1 || true
+iii worker restart link >/dev/null 2>&1 || true
 sleep 3
 
 # --- Malicious URL: agent auto-quarantines ---

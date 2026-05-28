@@ -52,8 +52,8 @@ wait_for_port "$SDK_PORT" 40 || { echo "engine did not open $SDK_PORT"; cat "$LO
 wait_for_port "$HTTP_PORT" 90 || { echo "iii-http did not open $HTTP_PORT"; cat "$LOG"; exit 1; }
 
 # Bind http + subscribe triggers (cold-boot race) and ensure the schema.
-iii worker restart link-worker >/dev/null 2>&1 || true
-iii worker restart analytics-worker >/dev/null 2>&1 || true
+iii worker restart link >/dev/null 2>&1 || true
+iii worker restart analytics >/dev/null 2>&1 || true
 sleep 3
 
 # --- Create fans out to the Python analytics subscriber (link.created) ---

@@ -42,7 +42,7 @@ ENGINE_PID=$!
 wait_for_port "$SDK_PORT" 40 || { echo "engine did not open $SDK_PORT"; cat "$LOG"; exit 1; }
 wait_for_port "$HTTP_PORT" 90 || { echo "iii-http did not open $HTTP_PORT"; cat "$LOG"; exit 1; }
 wait_for_port "$STREAM_PORT" 90 || { echo "iii-stream did not open $STREAM_PORT"; cat "$LOG"; exit 1; }
-iii worker restart link-worker >/dev/null 2>&1 || true
+iii worker restart link >/dev/null 2>&1 || true
 sleep 3
 
 # --- Cron: sweep expired links (sweep is a normal function, callable directly) ---

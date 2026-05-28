@@ -3,16 +3,12 @@
 
 In this chapter customers attach a small Node.js script to a link that decides where the redirect
 goes: geo-routing, A/B splits, or anything else they can write. The script runs in an `iii-sandbox`
-microVM on every redirect, isolated from `link-worker` and from the host.
+microVM on every redirect, isolated from the `link` worker and from the host.
 
 <Warning>
   `iii-sandbox` requires hardware virtualization. macOS works on Apple Silicon (M-series). Linux
   works with KVM enabled (`/dev/kvm` readable). Windows is not supported directly; use WSL2.
 </Warning>
-
-## Prerequisites
-
-- Chapter 6 complete, with the engine running.
 
 ## Add the worker
 
@@ -118,7 +114,7 @@ async function runRuleInSandbox(rule: string, ctx: unknown): Promise<string | nu
 ```
 
 A rule that fails, times out, or returns the wrong shape resolves to `null`; the redirect falls back
-to the stored URL. Untrusted scripts never run on the link-worker process; they run in a fresh microVM
+to the stored URL. Untrusted scripts never run on the link worker process; they run in a fresh microVM
 with their own rootfs, no host filesystem, and a 2-second wall-clock cap.
 
 ## Use the rule in the redirect path

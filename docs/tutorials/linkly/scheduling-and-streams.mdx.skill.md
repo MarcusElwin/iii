@@ -7,10 +7,6 @@ In this chapter you add two time-aware capabilities. With `iii-cron` you run fun
 a nightly sweep of expired links and a daily top-links digest. With `iii-stream` you push every click
 to subscribers in real time, so the browser you build next can show a live counter.
 
-## Prerequisites
-
-- Chapter 4 complete, with the engine running.
-
 ## Add the workers
 
 This chapter uses two new workers. Add both now:

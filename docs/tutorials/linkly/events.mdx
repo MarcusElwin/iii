@@ -1,18 +1,14 @@
 ---
 title: "Ch. 4: Make it durable"
-description: "Move click recording onto a queue, then broadcast link events to independent subscribers."
+description: "Move click-row writes onto a queue, then broadcast link events to independent subscribers."
 owner: "devrel"
 type: "tutorial"
 ---
 
-In Chapter 3 a redirect writes its click to the database inline, so a slow write slows the redirect.
-In this chapter you move click recording onto a **queue** so redirects return immediately, then use
-**pub/sub** to broadcast link events to independent subscribers: a Python analytics worker and a cache
-refresher, neither of which the publisher knows about.
-
-## Prerequisites
-
-- Chapter 3 complete, with the engine running.
+In Chapter 3 every redirect inserts a timestamped row into the `clicks` table inline, so a slow write
+slows the redirect. In this chapter you move that insert onto a **queue** so redirects return
+immediately, then use **pub/sub** to broadcast link events to independent subscribers: a Python
+analytics worker and a cache refresher, neither of which the publisher knows about.
 
 ## Add the workers
 
@@ -25,9 +21,11 @@ iii worker add iii-pubsub
 
 ## Make redirects fast with a queue
 
-`iii-queue` is already in your project. Define a named `clicks` queue on it:
+A queue holds work that is accepted now and run later: each message in the `clicks` queue is one
+"insert a row recording that someone followed code X at time T." Define the queue on the `iii-queue`
+worker (already in your project from `iii project init`):
 
-```yaml config.yaml {1-9}
+```yaml config.yaml
   - name: iii-queue
     config:
       queue_configs:
@@ -40,9 +38,9 @@ iii worker add iii-pubsub
 ```
 
 Add a consumer function that does the database write, and import `TriggerAction`. In
-`link-worker/src/index.ts`:
+`link/src/index.ts`:
 
-```typescript src/index.ts {1-13}
+```typescript src/index.ts
 import { registerWorker, Logger, TriggerAction } from 'iii-sdk'
 
 worker.registerFunction('link::record_click', async (payload: { code: string; clicked_at: string }) => {
@@ -58,10 +56,10 @@ worker.registerFunction('link::record_click', async (payload: { code: string; cl
 })
 ```
 
-Then change `http::redirect` to enqueue the click instead of writing it inline:
+Then change `http::redirect` to enqueue the click row instead of writing it inline:
 
-```typescript src/index.ts {1-7}
-  // Enqueue the click and return right away; the consumer writes it later.
+```typescript src/index.ts
+  // Enqueue the row and return right away; the consumer writes it later.
   await worker.trigger({
     function_id: 'link::record_click',
     payload: { code, clicked_at: new Date().toISOString() },
@@ -70,7 +68,7 @@ Then change `http::redirect` to enqueue the click instead of writing it inline:
   return { status_code: 302, headers: { Location: url } }
 ```
 
-The redirect now returns as soon as the click is accepted onto the queue. `link::record_click` drains
+The redirect now returns as soon as the row is accepted onto the queue. `link::record_click` drains
 the queue in the background, with retries and a dead-letter queue if a write keeps failing.
 
 ## Broadcast events with pub/sub
@@ -81,7 +79,7 @@ react to the same event, use pub/sub instead, served by the `iii-pubsub` worker 
 Publish an event whenever a link is created or its target changes. Add a small helper and call it from
 `link::create`:
 
-```typescript src/index.ts {1-6}
+```typescript src/index.ts
 async function publish(topic: string, data: unknown): Promise<void> {
   await worker.trigger({ function_id: 'publish', payload: { topic, data } })
 }
@@ -90,9 +88,10 @@ async function publish(topic: string, data: unknown): Promise<void> {
 await publish('link.created', { code, url: payload.url })
 ```
 
-Add an update path so a link's target can change, and announce it:
+Add an update path so a link's target can change, and announce it. First, the domain function: it
+updates the database row and publishes a `link.updated` event:
 
-```typescript src/index.ts {1-30}
+```typescript src/index.ts
 worker.registerFunction('link::update', async (payload: { code: string; url: string }) => {
   await worker.trigger({
     function_id: 'database::execute',
@@ -101,7 +100,11 @@ worker.registerFunction('link::update', async (payload: { code: string; url: str
   await publish('link.updated', { code: payload.code, url: payload.url })
   return { code: payload.code, url: payload.url }
 })
+```
 
+Then the HTTP handler that validates input and calls the domain function:
+
+```typescript src/index.ts
 worker.registerFunction(
   'http::update',
   async (req: ApiRequest<{ url?: string }>): Promise<ApiResponse> => {
@@ -117,7 +120,11 @@ worker.registerFunction(
     return { status_code: 200, body: link, headers: { 'Content-Type': 'application/json' } }
   },
 )
+```
 
+And the trigger that binds it to `PUT /links/:code`:
+
+```typescript src/index.ts
 worker.registerTrigger({
   type: 'http',
   function_id: 'http::update',
@@ -131,7 +138,7 @@ worker.registerTrigger({
 Rather than refresh the cache inside `link::update`, subscribe to the event. The update only announces
 what happened; the cache refresh reacts to it, and any other reaction can attach the same way:
 
-```typescript src/index.ts {1-12}
+```typescript src/index.ts
 worker.registerFunction('link::on_link_updated', async (data: { code: string; url: string }) => {
   await worker.trigger({
     function_id: 'state::set',
@@ -150,7 +157,7 @@ worker.registerTrigger({
 
 The second subscriber counts links as they are created. It is a separate concern, so write it as a
 separate worker, in Python, to show workers in different languages sharing one bus. Create
-`analytics-worker/main.py`:
+`analytics/main.py`:
 
 ```python main.py
 import os
@@ -160,15 +167,14 @@ from iii import register_worker, InitOptions, Logger
 
 worker = register_worker(
     os.environ.get("III_URL", "ws://localhost:49134"),
-    InitOptions(worker_name="analytics-worker"),
+    InitOptions(worker_name="analytics"),
 )
 logger = Logger()
 
 DB = "primary"
 
-
 def on_link_created(data: dict) -> dict:
-    """Runs whenever link-worker publishes `link.created`. Counts links per day."""
+    """Runs whenever link publishes `link.created`. Counts links per day."""
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     worker.trigger(
         {
@@ -184,7 +190,6 @@ def on_link_created(data: dict) -> dict:
     logger.info(f"counted new link {data.get('code')} for {day}")
     return {"ok": True}
 
-
 worker.register_function("analytics::on_link_created", on_link_created)
 worker.register_trigger(
     {
@@ -197,10 +202,10 @@ worker.register_trigger(
 print("Analytics worker started")
 ```
 
-It needs an `analytics-worker/iii.worker.yaml`:
+It needs an `analytics/iii.worker.yaml`:
 
-```yaml iii.worker.yaml {1-8}
-name: analytics-worker
+```yaml iii.worker.yaml
+name: analytics
 runtime:
   kind: python
   package_manager: pip
@@ -210,7 +215,7 @@ scripts:
   start: "watchfiles 'python main.py'"
 ```
 
-And an `analytics-worker/requirements.txt`:
+And an `analytics/requirements.txt`:
 
 ```text requirements.txt
 iii-sdk==0.13.0
@@ -218,9 +223,9 @@ watchfiles
 ```
 
 The `daily_link_counts` table is created alongside the others, so add it to `ensureSchema` in
-`link-worker`:
+`link`:
 
-```typescript src/index.ts {1-7}
+```typescript src/index.ts
 await worker.trigger({
   function_id: 'database::execute',
   payload: {
@@ -232,14 +237,14 @@ await worker.trigger({
 
 Finally, declare `iii-pubsub` and the new worker in `config.yaml`:
 
-```yaml config.yaml {1-7}
+```yaml config.yaml
   - name: iii-pubsub
     config:
       adapter:
         name: local
 
-  - name: analytics-worker
-    worker_path: ./analytics-worker
+  - name: analytics
+    worker_path: ./analytics
 ```
 
 ## See it work
@@ -266,8 +271,8 @@ iii trigger database::query db=primary sql="SELECT day, count FROM daily_link_co
 
 ## Conclusion
 
-Redirects no longer wait on a database write: clicks ride a queue, drained in the background. Link
-events fan out over pub/sub to a Python analytics counter and a cache refresher, and `link-worker`
-does not know either of them exists. Next, in
-[Ch. 5: Schedule and stream](/tutorials/linkly/scheduling-and-streams), you sweep expired links on a schedule
-and stream live clicks to the browser.
+Redirects no longer wait on a database write: click rows ride a queue, drained in the background.
+Link events fan out over pub/sub to a Python analytics counter and a cache refresher, and the `link`
+worker does not know either of them exists. Next, in
+[Ch. 5: Schedule and stream](/tutorials/linkly/scheduling-and-streams), you sweep expired links on a
+schedule and stream live clicks to the browser.

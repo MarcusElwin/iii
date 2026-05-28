@@ -6,11 +6,6 @@ In this chapter the browser becomes a worker. It connects to the engine over Web
 registers a `user::confirm_destructive_op` function the server calls when a delete needs a human's
 go-ahead.
 
-## Prerequisites
-
-- Chapter 5 complete, with the engine running.
-- Node.js 20+ (for the Vite dev server).
-
 ## Add the workers
 
 A browser worker connects through `iii-worker-manager`'s RBAC-gated listener, separate from the
@@ -24,8 +19,8 @@ iii worker add iii-worker-manager
 
 ## Run two listeners
 
-The engine's built-in port at `49134` is the **trusted** listener; local workers (link-worker,
-analytics-worker) connect there. The browser must not. Replace the built-in with two
+The engine's built-in port at `49134` is the **trusted** listener; local workers (link worker,
+analytics worker) connect there. The browser must not. Replace the built-in with two
 `iii-worker-manager` entries: the trusted one (local workers keep using it) and an RBAC-gated one on
 `3110` for browsers:
 
@@ -56,7 +51,7 @@ names a function the engine runs on every connection to admit or reject it; you 
 
 `link::auth_browser` runs once per browser connection. It receives the request's `headers`,
 `query_params`, and `ip_address`, and returns the session's permissions (allow/deny additions,
-arbitrary context). Throw to reject. Add it to `link-worker/src/index.ts`:
+arbitrary context). Throw to reject. Add it to `link/src/index.ts`:
 
 ```typescript src/index.ts {1-16}
 worker.registerFunction(

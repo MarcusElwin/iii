@@ -24,8 +24,8 @@ workers:
       adapter:
         name: builtin
 
-  - name: link-worker
-    worker_path: ./link-worker
+  - name: link
+    worker_path: ./link
 
   - name: iii-http
     config:
@@ -67,8 +67,8 @@ workers:
       adapter:
         name: local
 
-  - name: analytics-worker
-    worker_path: ./analytics-worker
+  - name: analytics
+    worker_path: ./analytics
 
   - name: iii-cron
     config:

@@ -19,8 +19,8 @@ each other's functions through the engine. You add capability without rewriting 
 
 ## Ch. 1: Foundations
 
-Build the `link-worker` with `link::create` and `link::resolve`, then expose them over HTTP with
-`iii-http` as `POST /links` and `GET /s/:code`.
+Build a custom `link` worker with `link::create` and `link::resolve`, store links in memory, then
+expose them over HTTP with `iii-http` as `POST /links` and `GET /s/:code`.
 
 ## Ch. 2: Observe everything
 
@@ -30,7 +30,7 @@ and live invocations.
 ## Ch. 3: Persist everything
 
 Move the in-memory map into `iii-state` so restarts keep your links, then graduate links and click
-events into a `database` table for durable history.
+events into a table using the `database` worker for long term storage.
 
 ## Ch. 4: Make it durable
 

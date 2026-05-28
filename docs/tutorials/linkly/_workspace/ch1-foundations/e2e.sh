@@ -8,7 +8,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT="$HERE/linkly"
-WORKER="$PROJECT/link-worker"
+WORKER="$PROJECT/link"
 LOG="$(mktemp -t linkly-ch1-engine.XXXX.log)"
 SDK_PORT=49134
 HTTP_PORT=3111
@@ -38,7 +38,7 @@ wait_for_port() { # wait_for_port <port> <seconds>
 
 cd "$PROJECT"
 
-# config.yaml already wires link-worker via a relative worker_path. Boot the engine.
+# config.yaml already wires link via a relative worker_path. Boot the engine.
 iii > "$LOG" 2>&1 &
 ENGINE_PID=$!
 
@@ -52,9 +52,9 @@ assert "link::resolve returns the url" '"url": "https://iii.dev"' "$out"
 out="$(iii trigger link::resolve code=nope 2>&1)"
 assert "link::resolve returns null for unknown code" '"url": null' "$out"
 
-# --- HTTP edge (iii-http is in config.yaml; restart link-worker so triggers bind) ---
+# --- HTTP edge (iii-http is in config.yaml; restart link so triggers bind) ---
 wait_for_port "$HTTP_PORT" 60 || { echo "iii-http did not open $HTTP_PORT"; cat "$LOG"; exit 1; }
-iii worker restart link-worker >/dev/null 2>&1 || true
+iii worker restart link >/dev/null 2>&1 || true
 sleep 2
 
 out="$(curl -sS -i -X POST "http://127.0.0.1:$HTTP_PORT/links" \

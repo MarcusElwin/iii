@@ -16,11 +16,11 @@ seed() {
 }
 
 seed
-# Routes only bind once link-worker has registered while iii-http is active.
+# Routes only bind once link has registered while iii-http is active.
 # On a cold boot that can race; restart the worker once if the route 404s.
 if [ "$(curl -s -o /dev/null -w '%{http_code}' "$HTTP/s/iii")" = "404" ]; then
-  echo "routes not bound yet; restarting link-worker..."
-  iii worker restart link-worker >/dev/null 2>&1 || true
+  echo "routes not bound yet; restarting link..."
+  iii worker restart link >/dev/null 2>&1 || true
   sleep 2
   seed
 fi

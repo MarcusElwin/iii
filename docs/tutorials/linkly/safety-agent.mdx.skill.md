@@ -7,11 +7,6 @@ quarantine the link, ask a human operator to confirm deletion, or let it through
 real LLM tool-calling loop, with every model call routed through `harness` so the trace explorer from
 Chapter 2 covers the agent end-to-end.
 
-## Prerequisites
-
-- Chapter 7 complete, with the engine running.
-- The Linkly frontend from Chapter 6 (the agent's "ask a human" branch surfaces there).
-
 ## Why harness, not a vendor SDK directly
 
 You install one new worker:
@@ -49,9 +44,9 @@ the `database` worker's config:
           url: sqlite:./data/harness.db
 ```
 
-## Add a quarantine path to link-worker
+## Add a quarantine path to link worker
 
-Quarantined links don't resolve. In `link-worker/src/index.ts`, extend `ensureSchema` with the
+Quarantined links don't resolve. In `link/src/index.ts`, extend `ensureSchema` with the
 `link_quarantine` table, add `link::quarantine`, and have `link::resolve` check it before the cache:
 
 ```typescript src/index.ts
