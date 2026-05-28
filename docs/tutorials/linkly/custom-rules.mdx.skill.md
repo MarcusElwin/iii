@@ -194,6 +194,6 @@ never yours.
 ## Conclusion
 
 Linkly now lets customers attach per-link redirect logic that runs safely on every request. Next, in
-[A link-safety agent](/tutorials/linkly/safety-agent), an autonomous agent samples newly created links,
+[Ch. 8: Make it agentic](/tutorials/linkly/safety-agent), an autonomous agent samples newly created links,
 investigates their destinations in sandboxes, and decides on its own whether to quarantine them or
 ask a human to confirm deletion.

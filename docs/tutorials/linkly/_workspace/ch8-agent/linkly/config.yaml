@@ -21,6 +21,14 @@ workers:
           type: standard
           max_retries: 5
           concurrency: 5
+        safety-investigations:
+          type: standard
+          max_retries: 3
+          concurrency: 2
+        deletes:
+          type: standard
+          max_retries: 3
+          concurrency: 5
       adapter:
         name: builtin
 
@@ -73,6 +81,7 @@ workers:
         expose_functions:
           - match("link::create")
           - match("link::request_delete")
+          - match("link::delete")
           - match("stream::*")
 
   - name: iii-sandbox

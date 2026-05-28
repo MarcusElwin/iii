@@ -1,4 +1,4 @@
-import { registerWorker, Logger } from 'iii-sdk'
+import { registerWorker, Logger, TriggerAction } from 'iii-sdk'
 import { TOOLS, SYSTEM_PROMPT, pickToolCall, reasonOf } from './agent.js'
 import { stubDecide } from './stub.js'
 
@@ -71,8 +71,8 @@ async function quarantine(code: string, reason: string): Promise<void> {
   await worker.trigger({ function_id: 'link::quarantine', payload: { code, reason } })
 }
 
-async function proposeDelete(code: string): Promise<{ deleted: boolean }> {
-  return worker.trigger<{ code: string }, { deleted: boolean }>({
+async function proposeDelete(code: string): Promise<{ confirmed: boolean }> {
+  return worker.trigger<{ code: string }, { confirmed: boolean }>({
     function_id: 'link::request_delete',
     payload: { code },
   })
@@ -109,7 +109,7 @@ async function investigate(link: { code: string; url: string }): Promise<void> {
     }
     if (call.name === 'propose_delete') {
       const r = await proposeDelete(link.code)
-      logger.info('agent: propose_delete', { code: link.code, reason: reasonOf(call.input), deleted: r.deleted })
+      logger.info('agent: propose_delete', { code: link.code, reason: reasonOf(call.input), confirmed: r.confirmed })
       return
     }
 
@@ -132,22 +132,33 @@ async function investigate(link: { code: string; url: string }): Promise<void> {
 
 // --- Subscribe to link.created (with sampling) ---
 
+// Pubsub subscriber: samples link.created events, then enqueues an
+// investigation. The queue (configured in iii-queue's queue_configs)
+// gives us retries on crash, a dead-letter queue, and a concurrency
+// cap so the agent never fans out faster than we can absorb.
 worker.registerFunction('safety::on_link_created', async (data: { code: string; url: string }) => {
   if (Math.random() >= SAMPLE_RATE) {
     return { sampled: false }
   }
-  try {
-    await investigate(data)
-  } catch (e) {
-    logger.warn('investigation failed', { code: data.code, error: String(e).slice(0, 200) })
-  }
-  return { sampled: true }
+  await worker.trigger({
+    function_id: 'safety::investigate',
+    payload: data,
+    action: TriggerAction.Enqueue({ queue: 'safety-investigations' }),
+  })
+  return { sampled: true, queued: true }
 })
 
 worker.registerTrigger({
   type: 'subscribe',
   function_id: 'safety::on_link_created',
   config: { topic: 'link.created' },
+})
+
+// Queue consumer: drains `safety-investigations` and runs the agent's
+// tool-calling loop for one link. Throws on failure so iii-queue retries.
+worker.registerFunction('safety::investigate', async (data: { code: string; url: string }) => {
+  await investigate(data)
+  return { investigated: true }
 })
 
 console.info('safety-agent ready', { sample_rate: SAMPLE_RATE, stub: STUB, model: STUB ? 'stub' : MODEL })

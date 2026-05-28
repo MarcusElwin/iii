@@ -159,8 +159,9 @@ worker.registerFunction('link::delete', async (payload: { code: string }) => {
   return { deleted: true }
 })
 
-// Ask a connected browser to confirm, then delete only if it says yes. The
-// browser registers user::confirm_destructive_op; this calls it and waits.
+// Ask a connected browser to confirm. When the operator confirms, the browser
+// itself enqueues link::delete on the `deletes` queue (browser as queue
+// producer). This function just relays the operator's decision.
 worker.registerFunction('link::request_delete', async (payload: { code: string }) => {
   const { confirmed } = await worker.trigger<
     { code: string; action: string },
@@ -169,11 +170,7 @@ worker.registerFunction('link::request_delete', async (payload: { code: string }
     function_id: 'user::confirm_destructive_op',
     payload: { code: payload.code, action: `delete link "${payload.code}"` },
   })
-  if (!confirmed) {
-    return { deleted: false }
-  }
-  await worker.trigger({ function_id: 'link::delete', payload: { code: payload.code } })
-  return { deleted: true }
+  return { confirmed }
 })
 
 // Browser RBAC gate. Runs on every connection to the :3110 worker-manager.

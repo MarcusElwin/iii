@@ -1,5 +1,5 @@
 ---
-title: "A link-safety agent"
+title: "Ch. 8: Make it agentic"
 description: "Drop in an autonomous LLM agent that samples new links, investigates destinations in sandboxes, and quarantines or asks a human to confirm deletion."
 owner: "devrel"
 type: "tutorial"
@@ -249,13 +249,50 @@ back, and decides what to do next. It is not a fixed pipeline. A real run might 
 quarantine; another might never inspect because the URL is obviously fine; a third might inspect,
 see a 302 to a known-bad domain, and propose deletion.
 
-Finally, subscribe to `link.created`:
+### Run investigations on a queue
 
-```typescript src/index.ts
+The agent could subscribe to `link.created` and run the whole investigation in the subscriber. That
+works once. The first crash mid-investigation loses the link forever, because pubsub is fire-and-forget.
+A flood of new links fans out as many concurrent investigations as you have CPU.
+
+Both problems go away when the subscriber's only job is to **enqueue** an investigation, and the
+investigation itself is the queue's consumer. `iii-queue` then gives you retries on crash, a
+dead-letter queue for links the agent persistently can't investigate, and a `concurrency` cap so
+investigations never run faster than you can absorb.
+
+Add a `safety-investigations` entry to `iii-queue`'s `queue_configs` in `config.yaml`:
+
+```yaml config.yaml {4-7}
+  - name: iii-queue
+    config:
+      queue_configs:
+        safety-investigations:
+          type: standard
+          max_retries: 3
+          concurrency: 2
+        clicks:
+          type: standard
+          max_retries: 5
+          concurrency: 5
+      adapter:
+        name: builtin
+```
+
+In `safety-agent/src/index.ts`, the subscriber enqueues; a separate consumer runs the loop:
+
+```typescript src/index.ts {1,5-15,19-22}
+import { registerWorker, Logger, TriggerAction } from 'iii-sdk'
+
+// ...
+
 worker.registerFunction('safety::on_link_created', async (data: { code: string; url: string }) => {
   if (Math.random() >= SAMPLE_RATE) return { sampled: false }
-  await investigate(data).catch((e) => logger.warn('investigation failed', { code: data.code, error: String(e) }))
-  return { sampled: true }
+  await worker.trigger({
+    function_id: 'safety::investigate',
+    payload: data,
+    action: TriggerAction.Enqueue({ queue: 'safety-investigations' }),
+  })
+  return { sampled: true, queued: true }
 })
 
 worker.registerTrigger({
@@ -263,10 +300,19 @@ worker.registerTrigger({
   function_id: 'safety::on_link_created',
   config: { topic: 'link.created' },
 })
+
+worker.registerFunction('safety::investigate', async (data: { code: string; url: string }) => {
+  await investigate(data)
+  return { investigated: true }
+})
 ```
 
-In production you sample at maybe 1% (`SAFETY_SAMPLE_RATE=0.01`); for this tutorial the default is 1
-so every new link is investigated.
+When `safety::investigate` throws, iii-queue retries it (up to `max_retries`); after that the message
+lands in the dead-letter queue and the agent moves on. With `concurrency: 2`, no more than two
+investigations are ever in flight, no matter how fast `link.created` events arrive.
+
+In production you'd sample at maybe 1% (`SAFETY_SAMPLE_RATE=0.01`); for this tutorial the default is
+1 so every new link is investigated.
 
 Declare the new worker in `config.yaml`:
 
@@ -322,12 +368,88 @@ shows up as a span in `iii-observability`. Open `engine::traces::tree` on the ag
 and you'll see the LLM call, each `sandbox::exec` it triggered, and the terminal `link::quarantine`
 or `link::request_delete` all in one tree.
 
-## Admin page (one-line addition to the frontend)
+## Browser-confirmed deletes ride a queue
 
-Chapter 6's browser worker already registers `user::confirm_destructive_op`, the function the
-server calls when the agent picks `propose_delete`. You don't need a new component; the existing
-`window.confirm` prompt is the admin surface. In a real product you'd swap that for a queue of
-pending requests, but the seam is the same: the agent calls the function, the browser answers it.
+The agent's `propose_delete` tool routes through Chapter 6's `user::confirm_destructive_op` in the
+browser. Currently `link::request_delete` does the delete server-side after the operator clicks OK.
+Make the **browser** the queue producer instead: when the operator confirms, the browser itself
+enqueues `link::delete` on a `deletes` queue. The actual delete becomes durable (retried on
+failure) and the browser tab can close without losing the work.
+
+Add a `deletes` queue alongside `safety-investigations`:
+
+```yaml config.yaml {8-11}
+  - name: iii-queue
+    config:
+      queue_configs:
+        safety-investigations:
+          type: standard
+          max_retries: 3
+          concurrency: 2
+        deletes:
+          type: standard
+          max_retries: 3
+          concurrency: 5
+        clicks:
+          type: standard
+          max_retries: 5
+          concurrency: 5
+```
+
+Add `link::delete` to the browser RBAC allowlist so the browser session is allowed to enqueue it:
+
+```yaml config.yaml {7}
+  - name: iii-worker-manager
+    config:
+      port: 3110
+      rbac:
+        auth_function_id: link::auth_browser
+        expose_functions:
+          - match("link::create")
+          - match("link::request_delete")
+          - match("link::delete")
+          - match("stream::*")
+```
+
+In the frontend, update `src/App.tsx` to enqueue the delete when the operator confirms:
+
+```tsx src/App.tsx {2,12-21}
+import { useEffect, useState } from 'react'
+import { TriggerAction } from 'iii-browser-sdk'
+import { worker } from './iii.js'
+
+// ...inside the user::confirm_destructive_op handler:
+worker.registerFunction(
+  'user::confirm_destructive_op',
+  async (data: { action: string; code: string }) => {
+    const confirmed = window.confirm(`Confirm: ${data.action}?`)
+    if (confirmed) {
+      // Operator approved. Enqueue the delete on the durable `deletes` queue;
+      // iii-queue retries on crash, dead-letters on persistent failure, and
+      // survives this tab closing.
+      await worker.trigger({
+        function_id: 'link::delete',
+        payload: { code: data.code },
+        action: TriggerAction.Enqueue({ queue: 'deletes' }),
+      })
+    }
+    return { confirmed }
+  },
+)
+```
+
+The server-side `link::request_delete` no longer does the delete itself; it just relays the
+operator's decision back to the agent:
+
+```typescript src/index.ts {6}
+worker.registerFunction('link::request_delete', async (payload: { code: string }) => {
+  const { confirmed } = await worker.trigger<{ code: string; action: string }, { confirmed: boolean }>({
+    function_id: 'user::confirm_destructive_op',
+    payload: { code: payload.code, action: `delete link "${payload.code}"` },
+  })
+  return { confirmed }
+})
+```
 
 ## Conclusion
 

@@ -1,5 +1,5 @@
 ---
-title: "React to clicks"
+title: "Ch. 4: Make it durable"
 description: "Move click recording onto a queue, then broadcast link events to independent subscribers."
 owner: "devrel"
 type: "tutorial"
@@ -269,5 +269,5 @@ iii trigger database::query db=primary sql="SELECT day, count FROM daily_link_co
 Redirects no longer wait on a database write: clicks ride a queue, drained in the background. Link
 events fan out over pub/sub to a Python analytics counter and a cache refresher, and `link-worker`
 does not know either of them exists. Next, in
-[Schedule and stream](/tutorials/linkly/scheduling-and-streams), you sweep expired links on a schedule
+[Ch. 5: Schedule and stream](/tutorials/linkly/scheduling-and-streams), you sweep expired links on a schedule
 and stream live clicks to the browser.

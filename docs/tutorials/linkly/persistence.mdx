@@ -1,5 +1,5 @@
 ---
-title: "Persist links"
+title: "Ch. 3: Persist everything"
 description: "Move links out of worker memory into iii-state, then into a SQLite database for durable history."
 owner: "devrel"
 type: "tutorial"
@@ -275,5 +275,5 @@ iii trigger database::query db=primary sql="SELECT COUNT(*) AS clicks FROM click
 Linkly's links are now durable: the database is the source of truth, `iii-state` keeps lookups fast,
 and every redirect leaves a click in the history. But that click is written on the redirect's hot
 path, so a slow database write slows the redirect. Next, in
-[React to clicks](/tutorials/linkly/events), you move click recording onto a queue so redirects stay
+[Ch. 4: Make it durable](/tutorials/linkly/events), you move click recording onto a queue so redirects stay
 fast.

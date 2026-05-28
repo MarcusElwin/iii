@@ -18,42 +18,42 @@ what came before.
   triggers, and workers before you begin.
 </Note>
 
-## Foundations
+## Ch. 1: Foundations
 
 Build the `link-worker` with `link::create` and `link::resolve`, then expose them over HTTP with
 `iii-http` as `POST /links` and `GET /s/:code`.
 
-## Observe the redirect path
+## Ch. 2: Observe everything
 
 Add `iii-observability` for logs and traces, and open the `console` to inspect functions, triggers,
 and live invocations.
 
-## Persist links
+## Ch. 3: Persist everything
 
 Move the in-memory map into `iii-state` so restarts keep your links, then graduate links and click
 events into a `database` table for durable history.
 
-## React to clicks
+## Ch. 4: Make it durable
 
 Push click events onto `iii-queue` so redirects stay fast, and publish `link.created` events with
 `iii-pubsub` that a cache and an analytics function each subscribe to.
 
-## Schedule and stream
+## Ch. 5: Schedule and stream
 
 Sweep expired links nightly with `iii-cron`, and stream live clicks to the browser over a single
 WebSocket with `iii-stream`.
 
-## Add a frontend
+## Ch. 6: Bring in the browser
 
 Turn a browser tab into a worker with the browser SDK: invoke `link::create` directly, subscribe to
 the click stream, and register a browser-side function the server can call.
 
-## Custom redirect rules
+## Ch. 7: Open it to users
 
 Let customers attach per-link redirect logic (geo-routing, A/B splits) as scripts that run in an
 `iii-sandbox` on each request.
 
-## A link-safety agent
+## Ch. 8: Make it agentic
 
 Drop in the `harness` agent to sample new links, investigate suspicious destinations in a sandbox,
 and decide on its own whether to quarantine them or ask a human to confirm deletion.

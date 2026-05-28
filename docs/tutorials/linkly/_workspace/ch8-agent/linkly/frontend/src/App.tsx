@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { TriggerAction } from 'iii-browser-sdk'
 import { worker } from './iii.js'
 
 type Click = { code: string; clicked_at: string }
@@ -38,6 +39,16 @@ export function App() {
       'user::confirm_destructive_op',
       async (data: { action: string; code: string }) => {
         const confirmed = window.confirm(`Confirm: ${data.action}?`)
+        if (confirmed) {
+          // The operator approved. Enqueue the delete on the durable `deletes`
+          // queue; iii-queue retries on crash, dead-letters on persistent
+          // failure, and survives this tab closing.
+          await worker.trigger({
+            function_id: 'link::delete',
+            payload: { code: data.code },
+            action: TriggerAction.Enqueue({ queue: 'deletes' }),
+          })
+        }
         return { confirmed }
       },
     )
