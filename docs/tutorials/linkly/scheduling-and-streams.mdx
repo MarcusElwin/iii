@@ -27,7 +27,7 @@ iii worker add iii-stream
 A sweep needs something to sweep, so let links carry an optional expiry. Add an `expires_at` column to
 the `links` table in `ensureSchema`:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-7}
 await worker.trigger({
   function_id: 'database::execute',
   payload: {
@@ -39,7 +39,7 @@ await worker.trigger({
 
 Accept `expires_at` in `link::create` and store it (it stays `null` for links that never expire):
 
-```typescript src/index.ts
+```typescript src/index.ts {1-21}
 worker.registerFunction(
   'link::create',
   async (payload: { url: string; code?: string; expires_at?: string }) => {
@@ -69,7 +69,7 @@ Write a function that deletes expired links from the database and evicts them fr
 bind it to a `cron` trigger. The expression has six fields starting with **seconds** (`0 0 3 * * *` is
 03:00 every day):
 
-```typescript src/index.ts
+```typescript src/index.ts {1-25}
 worker.registerFunction('link::sweep_expired', async () => {
   const now = new Date().toISOString()
   const { rows } = await worker.trigger<
@@ -103,7 +103,7 @@ The cron schedule runs it nightly, but it is an ordinary function, so you can ru
 
 A second scheduled job ranks the most-clicked links and logs them:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-20}
 worker.registerFunction('link::daily_digest', async () => {
   const { rows } = await worker.trigger<
     { db: string; sql: string },
@@ -131,7 +131,7 @@ worker.registerTrigger({
 `iii-stream` carries data that subscribers receive over a WebSocket the moment it changes. Publish
 each click to a `clicks` stream from `link::record_click`, alongside the durable write:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-21}
 worker.registerFunction('link::record_click', async (payload: { code: string; clicked_at: string }) => {
   await worker.trigger({
     function_id: 'database::execute',

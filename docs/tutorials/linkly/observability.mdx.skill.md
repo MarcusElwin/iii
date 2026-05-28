@@ -35,7 +35,7 @@ iii worker add console
 `link::create` already logs. Add a matching line to `link::resolve` so every lookup is recorded. Edit
 `link-worker/src/index.ts`:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-5}
 worker.registerFunction('link::resolve', async (payload: { code: string }) => {
   const url = store.resolve(payload.code)
   logger.info('link resolved', { code: payload.code, found: url !== undefined })

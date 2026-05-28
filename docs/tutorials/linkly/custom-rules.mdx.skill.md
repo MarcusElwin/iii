@@ -23,7 +23,7 @@ iii worker add iii-sandbox
 This adds the daemon and its config to `config.yaml`. The `image_allowlist` controls which images a
 caller may boot; you only need `node`:
 
-```yaml config.yaml
+```yaml config.yaml {1-9}
   - name: iii-sandbox
     config:
       auto_install: true
@@ -40,7 +40,7 @@ caller may boot; you only need `node`:
 A rule is a Node.js script that reads one JSON request from stdin and writes one JSON line on stdout
 with `chosen_url`. Persist rules alongside links. Add a table in `ensureSchema`:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-7}
 await worker.trigger({
   function_id: 'database::execute',
   payload: {
@@ -52,7 +52,7 @@ await worker.trigger({
 
 Then a function that upserts a rule, and a small helper that reads one back:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-22}
 worker.registerFunction('link::set_rule', async (payload: { code: string; rule: string }) => {
   await worker.trigger({
     function_id: 'database::execute',
@@ -82,7 +82,7 @@ async function loadRule(code: string): Promise<string | null> {
 `runRuleInSandbox` boots a `node` microVM, pipes the request to its stdin, and reads `chosen_url` off
 stdout. The sandbox is stopped on the way out, regardless of outcome:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-32}
 async function runRuleInSandbox(rule: string, ctx: unknown): Promise<string | null> {
   const { sandbox_id } = await worker.trigger<{ image: string }, { sandbox_id: string }>({
     function_id: 'sandbox::create',
@@ -126,7 +126,7 @@ with their own rootfs, no host filesystem, and a 2-second wall-clock cap.
 In `http::redirect`, look up a rule after resolving the URL. If one is set, run it; if it returns a
 URL, redirect there instead:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-21}
 worker.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiResponse> => {
   const code = req.path_params.code
   const { url } = await worker.trigger<{ code: string }, { url: string | null }>({

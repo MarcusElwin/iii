@@ -29,7 +29,7 @@ analytics-worker) connect there. The browser must not. Replace the built-in with
 `iii-worker-manager` entries: the trusted one (local workers keep using it) and an RBAC-gated one on
 `3110` for browsers:
 
-```yaml config.yaml
+```yaml config.yaml {1-17}
   # Trusted listener for local workers. Replaces the engine's built-in 49134.
   - name: iii-worker-manager
     config:
@@ -58,7 +58,7 @@ names a function the engine runs on every connection to admit or reject it; you 
 `query_params`, and `ip_address`, and returns the session's permissions (allow/deny additions,
 arbitrary context). Throw to reject. Add it to `link-worker/src/index.ts`:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-16}
 worker.registerFunction(
   'link::auth_browser',
   async (input: { headers: Record<string, string>; query_params: Record<string, string[]>; ip_address: string }) => {
@@ -86,7 +86,7 @@ Linkly already has `link::delete`. Add a wrapper that asks the connected browser
 only if the browser confirms. The server-side `worker.trigger` of a browser-registered function is
 the same primitive you've used between server workers, in reverse:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-14}
 worker.registerFunction('link::request_delete', async (payload: { code: string }) => {
   const { confirmed } = await worker.trigger<
     { code: string; action: string },

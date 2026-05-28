@@ -151,7 +151,7 @@ console.info('link-worker ready')
 `iii worker init` scaffolds the worker but leaves your project untouched. The engine runs the workers
 listed in `config.yaml`, so declare `link-worker` there. Add it to the `workers:` list:
 
-```yaml config.yaml
+```yaml config.yaml {1-2}
   - name: link-worker
     worker_path: ./link-worker
 ```
@@ -229,7 +229,7 @@ parameters in `req.path_params`, the parsed JSON body in `req.body`) and returns
 These handlers read the request, call your domain functions through the engine with `worker.trigger`,
 and shape the response. Add the imports and the two handlers below:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-52}
 import type { ApiRequest, ApiResponse } from 'iii-sdk'
 
 worker.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiResponse> => {

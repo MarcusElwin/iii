@@ -27,7 +27,7 @@ iii worker add iii-pubsub
 
 `iii-queue` is already in your project. Define a named `clicks` queue on it:
 
-```yaml config.yaml
+```yaml config.yaml {1-9}
   - name: iii-queue
     config:
       queue_configs:
@@ -42,7 +42,7 @@ iii worker add iii-pubsub
 Add a consumer function that does the database write, and import `TriggerAction`. In
 `link-worker/src/index.ts`:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-13}
 import { registerWorker, Logger, TriggerAction } from 'iii-sdk'
 
 worker.registerFunction('link::record_click', async (payload: { code: string; clicked_at: string }) => {
@@ -60,7 +60,7 @@ worker.registerFunction('link::record_click', async (payload: { code: string; cl
 
 Then change `http::redirect` to enqueue the click instead of writing it inline:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-7}
   // Enqueue the click and return right away; the consumer writes it later.
   await worker.trigger({
     function_id: 'link::record_click',
@@ -81,7 +81,7 @@ react to the same event, use pub/sub instead, served by the `iii-pubsub` worker 
 Publish an event whenever a link is created or its target changes. Add a small helper and call it from
 `link::create`:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-6}
 async function publish(topic: string, data: unknown): Promise<void> {
   await worker.trigger({ function_id: 'publish', payload: { topic, data } })
 }
@@ -92,7 +92,7 @@ await publish('link.created', { code, url: payload.url })
 
 Add an update path so a link's target can change, and announce it:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-30}
 worker.registerFunction('link::update', async (payload: { code: string; url: string }) => {
   await worker.trigger({
     function_id: 'database::execute',
@@ -131,7 +131,7 @@ worker.registerTrigger({
 Rather than refresh the cache inside `link::update`, subscribe to the event. The update only announces
 what happened; the cache refresh reacts to it, and any other reaction can attach the same way:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-12}
 worker.registerFunction('link::on_link_updated', async (data: { code: string; url: string }) => {
   await worker.trigger({
     function_id: 'state::set',
@@ -199,7 +199,7 @@ print("Analytics worker started")
 
 It needs an `analytics-worker/iii.worker.yaml`:
 
-```yaml iii.worker.yaml
+```yaml iii.worker.yaml {1-8}
 name: analytics-worker
 runtime:
   kind: python
@@ -220,7 +220,7 @@ watchfiles
 The `daily_link_counts` table is created alongside the others, so add it to `ensureSchema` in
 `link-worker`:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-7}
 await worker.trigger({
   function_id: 'database::execute',
   payload: {
@@ -232,7 +232,7 @@ await worker.trigger({
 
 Finally, declare `iii-pubsub` and the new worker in `config.yaml`:
 
-```yaml config.yaml
+```yaml config.yaml {1-7}
   - name: iii-pubsub
     config:
       adapter:

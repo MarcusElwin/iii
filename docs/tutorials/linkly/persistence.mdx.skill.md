@@ -21,7 +21,7 @@ iii worker add iii-state
 
 Its default config writes to a file, so values outlive a restart:
 
-```yaml config.yaml
+```yaml config.yaml {1-7}
   - name: iii-state
     config:
       adapter:
@@ -43,7 +43,7 @@ export function makeCode(): string {
 Then rewrite `link::create` and `link::resolve` in `link-worker/src/index.ts` to read and write
 `iii-state` instead of the `Map`. A value is stored under a `scope` (`links`) and a `key` (the code):
 
-```typescript src/index.ts
+```typescript src/index.ts {1-25}
 import { registerWorker, Logger } from 'iii-sdk'
 import { makeCode } from './codes.js'
 
@@ -96,7 +96,7 @@ iii worker add database
 
 Point it at a SQLite file (no server to run):
 
-```yaml config.yaml
+```yaml config.yaml {1-5}
   - name: database
     config:
       databases:
@@ -109,7 +109,7 @@ The worker owns its schema. On startup it creates the two tables if they do not 
 to the database on a cache miss and warms the cache, and a redirect records a click. Here is the full
 `link-worker/src/index.ts`:
 
-```typescript src/index.ts
+```typescript src/index.ts {1-138}
 import { registerWorker, Logger } from 'iii-sdk'
 import type { ApiRequest, ApiResponse } from 'iii-sdk'
 import { makeCode } from './codes.js'
