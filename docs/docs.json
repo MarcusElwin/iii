@@ -293,7 +293,8 @@
                   "tutorials/linkly/events",
                   "tutorials/linkly/scheduling-and-streams",
                   "tutorials/linkly/frontend",
-                  "tutorials/linkly/custom-rules"
+                  "tutorials/linkly/custom-rules",
+                  "tutorials/linkly/safety-agent"
                 ]
               }
             ]
