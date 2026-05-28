@@ -5,13 +5,12 @@
 
 This tutorial builds **Linkly**, a link shortener, one worker at a time. You start with a single
 function that turns `/s/abc` into a redirect, and finish with a multi-tenant link platform that has
-durable storage, analytics, expiry, a live ops dashboard, custom redirect rules, and an autonomous
-link-safety agent.
+durable execution, storage, analytics, expiry, a live ops dashboard, custom redirect rules, and an
+autonomous link-safety agent.
 
-Each chapter adds one capability by installing a worker and wiring it to what you already have. The
-point is not the link shortener itself, but the pattern: a real system on iii is a set of small
-workers that invoke each other's functions through the engine. You add capability without rewriting
-what came before.
+Each chapter adds one capability by adding a worker to your existing system. The point is not the
+link shortener itself, but the pattern: a real system on iii is a set of small workers that invoke
+each other's functions through the engine. You add capability without rewriting what came before.
 
 <Note>
   New to iii? Start with [Getting started](/quickstart) to install the engine and meet functions,
