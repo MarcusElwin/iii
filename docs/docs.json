@@ -291,7 +291,8 @@
                   "tutorials/linkly/observability",
                   "tutorials/linkly/persistence",
                   "tutorials/linkly/events",
-                  "tutorials/linkly/scheduling-and-streams"
+                  "tutorials/linkly/scheduling-and-streams",
+                  "tutorials/linkly/frontend"
                 ]
               }
             ]
