@@ -321,5 +321,5 @@ worker.registerTrigger({
 })
 
 ensureSchema()
-  .then(() => console.info('link ready'))
-  .catch((err) => console.error('schema init failed', err))
+  .then(() => logger.info('link worker ready'))
+  .catch((err) => logger.error('schema init failed', { error: String(err) }))

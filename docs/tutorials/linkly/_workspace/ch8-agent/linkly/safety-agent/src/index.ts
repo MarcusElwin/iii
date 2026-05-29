@@ -161,4 +161,4 @@ worker.registerFunction('safety::investigate', async (data: { code: string; url:
   return { investigated: true }
 })
 
-console.info('safety-agent ready', { sample_rate: SAMPLE_RATE, stub: STUB, model: STUB ? 'stub' : MODEL })
+logger.info('safety-agent ready', { sample_rate: SAMPLE_RATE, stub: STUB, model: STUB ? 'stub' : MODEL })

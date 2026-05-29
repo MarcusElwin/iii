@@ -342,21 +342,43 @@ the proposal sits unanswered until someone connects. The benign link is untouche
 
 ## Switch to a real LLM
 
-Set the Anthropic key via `auth::set_token`, then turn the stub off:
+Set the Anthropic key via `auth::set_token`:
 
 ```bash
 iii trigger auth::set_token --json '{
   "provider": "anthropic",
   "credential": { "type": "api_key", "value": "sk-ant-…" }
 }'
-
-# Then edit config.yaml's safety-agent block to disable the stub:
-#   - name: safety-agent
-#     worker_path: ./safety-agent
-#     env:
-#       SAFETY_AGENT_STUB: '0'
-# and restart: iii worker restart safety-agent
 ```
+
+Then turn the stub off by adding an `env:` block to the worker's own manifest at
+`safety-agent/iii.worker.yaml`. iii merges these into the worker process's environment when it starts
+the worker, so `process.env.SAFETY_AGENT_STUB` reads `'0'`:
+
+```yaml safety-agent/iii.worker.yaml
+name: safety-agent
+runtime:
+  kind: typescript
+  package_manager: npm
+  entry: src/index.ts
+scripts:
+  install: 'npm install'
+  start: 'npm run dev'
+env:
+  SAFETY_AGENT_STUB: '0'
+```
+
+Restart the worker so it picks up the change:
+
+```bash
+iii worker restart safety-agent
+```
+
+<Note>
+  `env:` lives in the worker's `iii.worker.yaml`, not under the worker's entry in the project
+  `config.yaml`. `III_URL` and `III_ENGINE_URL` are filtered out — iii sets those for you from the
+  engine port. Anything else flows through to the process.
+</Note>
 
 Now every `link.created` triggers a real Claude call through `provider::anthropic::complete`, which
 shows up as a span in `iii-observability`. Open `engine::traces::tree` on the agent's `trace_id`

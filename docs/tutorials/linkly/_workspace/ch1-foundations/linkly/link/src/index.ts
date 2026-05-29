@@ -74,4 +74,4 @@ worker.registerTrigger({
   config: { api_path: '/links', http_method: 'POST' },
 })
 
-console.info('link ready')
+logger.info('link worker ready')

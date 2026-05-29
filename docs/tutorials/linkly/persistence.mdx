@@ -228,12 +228,12 @@ worker.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiRe
 ```
 
 Finally, call `ensureSchema()` once when the worker starts, replacing the
-existing `console.info` line at the bottom of the file:
+existing `logger.info` line at the bottom of the file:
 
 ```typescript src/index.ts
 ensureSchema()
-  .then(() => console.info('link ready'))
-  .catch((err) => console.error('schema init failed', err))
+  .then(() => logger.info('link worker ready'))
+  .catch((err) => logger.error('schema init failed', { error: String(err) }))
 ```
 
 Save the file, create a link, and follow it a few times:
