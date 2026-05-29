@@ -21,7 +21,7 @@ iii worker add iii-stream
 ## Give links an expiry
 
 A sweep needs something to sweep, so let links carry an optional expiry. Add an `expires_at` column to
-the `links` table in `ensureSchema` — only the SQL string changes:
+the `links` table in `ensureSchema`. Only the SQL string changes.
 
 ```typescript src/index.ts {5}
 await worker.trigger({

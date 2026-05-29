@@ -124,8 +124,8 @@ const TOKEN = import.meta.env.VITE_LINKLY_TOKEN ?? 'dev-token'
 export const worker = registerWorker(`ws://localhost:3110?token=${encodeURIComponent(TOKEN)}`)
 ```
 
-Build `src/App.tsx` in pieces. First the imports and types — `Click` is one row from the `clicks`
-table, and `StreamEvent` is the wrapper `iii-stream` delivers to subscribers:
+Build `src/App.tsx` in pieces. First the imports and types: `Click` is one row from the `clicks`
+table, and `StreamEvent` is the wrapper `iii-stream` delivers to subscribers.
 
 ```tsx src/App.tsx
 import { useEffect, useState } from 'react'
@@ -137,8 +137,8 @@ type StreamEvent = {
 }
 ```
 
-Open the component and declare its state — the form fields, the just-created link, and the live click
-counter:
+Open the component and declare its state: the form fields, the newly created link, and the live
+click counter.
 
 ```tsx src/App.tsx
 export function App() {
@@ -188,7 +188,7 @@ prompt and returns the user's decision:
   }, [])
 ```
 
-Submit the form by calling `link::create` directly — no `fetch`, no REST. The browser is on the bus:
+Submit the form by calling `link::create` directly. No `fetch`, no REST. The browser is on the bus.
 
 ```tsx src/App.tsx
   async function onSubmit(e: React.FormEvent) {
@@ -203,7 +203,7 @@ Submit the form by calling `link::create` directly — no `fetch`, no REST. The 
   }
 ```
 
-Finally, the render — a shorten form, the last-created link, and the live click counter:
+Finally, the render: a shorten form, the last-created link, and the live click counter.
 
 ```tsx src/App.tsx
   return (
