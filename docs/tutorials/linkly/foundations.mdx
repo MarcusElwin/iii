@@ -59,7 +59,7 @@ name: link
 runtime:
   kind: typescript
   package_manager: npm
-  entry: dist/index.js
+  entry: src/index.ts
 scripts:
   install: "npm install"
   start: "npm run start"
@@ -71,24 +71,25 @@ scripts:
   [`iii.worker.yaml` manifest](/creating-workers/workers#worker-manifest).
 </Info>
 
-Give link a more fitting package name in `link/package.json`. Note you don't need to run npm or node
-from this directory. That is an option but when you start the worker later it will automatically
-install, build, and start the service within a self-contained microvm.
+Replace the template's `link/package.json` with this one. Note you don't need to run npm or node
+yourself. When you start the worker later it will automatically install and start the service within
+a self-contained microvm. The `start` script uses `tsx watch`, which runs the TypeScript source
+directly and reloads the worker whenever you save a change.
 
-```json {2} package.json
+```json package.json
 {
   "name": "link",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "tsx watch src/index.ts"
   },
   "dependencies": {
     "iii-sdk": "^0.16.0"
   },
   "devDependencies": {
+    "tsx": "^4.22.3",
     "typescript": "^5.9.3",
     "@types/node": "^24.10.1"
   }
@@ -156,26 +157,30 @@ worker.registerFunction("link::resolve", async (payload: { code: string }) => {
 logger.info("link worker ready");
 ```
 
-## Register the worker
-
-`iii worker init` scaffolds the worker but leaves your project untouched. To add this worker to your
-config run the following command from the root `linkly` directory (ie. where the `config.yaml` is)
-
-<Note>`iii worker add` works for any worker, local or remote.</Note>
-
 ## Start the engine
 
-From the project root, run `iii`. It reads `config.yaml`, starts the workers it lists (including
-`link`), and the workers register their functions with the engine:
+From the project root, run `iii`. It reads `config.yaml`, and the workers register their functions
+with the engine:
 
 ```bash
 iii
 ```
 
-You do not run `npm install` yourself: iii runs the worker's `install` script the first time it
-starts the worker. You will see the `link` worker register `link::create` and `link::resolve`. Leave
-the engine running and open a second terminal for the next steps.
+## Register the worker
 
+`iii worker init` scaffolds the worker but leaves your project untouched. To add this worker to your
+config run the following command from the root `linkly` directory (ie. where the `config.yaml` is).
+Add the `link` worker to your sytem by running:
+
+```bash
+iii worker add ./link
+```
+
+<Note>
+  You do not run the worker yourself: iii runs the worker's `install` script the first time it
+  starts the worker. You will see the `link` worker register `link::create` and `link::resolve`.
+  Leave the engine running and open a second terminal for the next steps.
+</Note>
 ## Call the functions
 
 `iii trigger` invokes a function on the running engine. Create a link with a custom code:
@@ -217,30 +222,96 @@ iii trigger link::resolve code=nope
 
 <Check>
   You have a working domain worker. `link::create` and `link::resolve` are registered with the
-  engine and callable from anywhere on the bus. Next you put them behind HTTP.
+  engine and callable from anywhere within your iii system. Next let's put them behind HTTP so that
+  external 3rd party systems could use them.
 </Check>
+<Info>
+  As you'll see later, unless you're supporting 3rd party systems it isn't necessary to expose
+  services over http since iii can even run browser tabs as workers.
+</Info>
 
-## Expose it over HTTP
+## Expose your functions over HTTP
 
 A function becomes an HTTP endpoint when you bind it to an `http` trigger. That trigger type is
 served by the `iii-http` worker you added at the start of the chapter.
 
-Add an HTTP edge to `link/src/index.ts` in pieces. An HTTP handler receives an `ApiRequest` (path
-parameters in `req.path_params`, the parsed JSON body in `req.body`) and returns an `ApiResponse`.
-The handlers call your domain functions through the engine with `worker.trigger`, then shape the
-response.
+### Create a function to handle new links
 
-Start by importing the request and response types:
+Add `http::create` to the bottom of `link/src/index.ts`. It validates the request body, calls
+`link::create` through the engine with `worker.trigger`, and returns the new link:
 
 ```typescript src/index.ts
-import type { ApiRequest, ApiResponse } from "iii-sdk";
+worker.registerFunction("http::create", async (req) => {
+  const { url, code } = req.body ?? {};
+  if (!url) {
+    return {
+      status_code: 400,
+      body: { error: 'missing "url"' },
+      headers: { "Content-Type": "application/json" },
+    };
+  }
+  const link = await worker.trigger<{ url: string; code?: string }, { code: string; url: string }>({
+    function_id: "link::create",
+    payload: { url, code },
+  });
+  return {
+    status_code: 201,
+    body: link,
+    headers: { "Content-Type": "application/json" },
+  };
+});
 ```
 
-Add `http::redirect`. It looks up the short code via `link::resolve`, returns a 404 when there's no
-match, and a 302 to the original URL otherwise:
+### Bind your create function to a Trigger
+
+Bind `http::create` to `POST /links` with a new trigger:
 
 ```typescript src/index.ts
-worker.registerFunction("http::redirect", async (req: ApiRequest): Promise<ApiResponse> => {
+worker.registerTrigger({
+  type: "http",
+  function_id: "http::create",
+  config: { api_path: "/links", http_method: "POST" },
+});
+```
+
+<Check>
+  This is the very first Trigger you've registered yourself. In iii Triggers serve a very important
+  purpose, they control what causes something to happen. In this case an http request causes a
+  function to run. Learn more about [Using iii / Triggers](/using-iii/triggers).
+</Check>
+
+<Info>
+  Every function registered comes with its own Trigger which is why `worker.trigger` worked earlier
+  without a declaration.
+</Info>
+
+### Mint a link over HTTP
+
+Save the file and the worker reloads with the new route registered. Now try out your new Trigger:
+
+```bash
+curl -i -X POST http://127.0.0.1:3111/links \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com","code":"demo"}'
+```
+
+```http
+HTTP/1.1 201 Created
+content-type: application/json
+
+{"code":"demo","url":"https://example.com"}
+```
+
+The link is stored in the worker's memory now, but `GET /s/demo` has nowhere to go yet — there's no
+handler. Add one next.
+
+### Create a function to handle redirects
+
+Add `http::redirect` to the bottom of `link/src/index.ts`. It looks up the short code via
+`link::resolve`, returns a 404 when there's no match, and a 302 to the original URL otherwise:
+
+```typescript src/index.ts
+worker.registerFunction("http::redirect", async (req) => {
   const code = req.path_params.code;
   const { url } = await worker.trigger<{ code: string }, { url: string | null }>({
     function_id: "link::resolve",
@@ -257,7 +328,9 @@ worker.registerFunction("http::redirect", async (req: ApiRequest): Promise<ApiRe
 });
 ```
 
-Bind it to a `GET /s/:code` route:
+### Bind your redirect function to a Trigger
+
+Just like before, bind `http::redirect` to `GET /s/:code` with a new Trigger:
 
 ```typescript src/index.ts
 worker.registerTrigger({
@@ -267,70 +340,19 @@ worker.registerTrigger({
 });
 ```
 
-Add `http::create`. It validates the request body, calls `link::create`, and returns the new link:
+### Follow the short code
 
-```typescript src/index.ts
-worker.registerFunction(
-  "http::create",
-  async (req: ApiRequest<{ url?: string; code?: string }>): Promise<ApiResponse> => {
-    const { url, code } = req.body ?? {};
-    if (!url) {
-      return {
-        status_code: 400,
-        body: { error: 'missing "url"' },
-        headers: { "Content-Type": "application/json" },
-      };
-    }
-    const link = await worker.trigger<
-      { url: string; code?: string },
-      { code: string; url: string }
-    >({
-      function_id: "link::create",
-      payload: { url, code },
-    });
-    return {
-      status_code: 201,
-      body: link,
-      headers: { "Content-Type": "application/json" },
-    };
-  },
-);
-```
-
-Bind it to `POST /links`:
-
-```typescript src/index.ts
-worker.registerTrigger({
-  type: "http",
-  function_id: "http::create",
-  config: { api_path: "/links", http_method: "POST" },
-});
-```
-
-Save the file. The worker runs under `tsx watch`, so it reloads and registers the two new routes,
-`GET /s/:code` and `POST /links`.
-
-## Use the web service
-
-Mint a link with `POST /links`:
+Since our link store is currently in memory only it gets cleared any time we update the `link`
+worker. We'll address that later but for now create a new redirect link and try it out:
 
 ```bash
 curl -i -X POST http://127.0.0.1:3111/links \
   -H 'Content-Type: application/json' \
-  -d '{"url":"https://example.com","code":"demo"}'
+  -d '{"url":"http://iii.dev/docs/understanding-iii","code":"learn-iii"}'
 ```
-
-```http
-HTTP/1.1 201 Created
-content-type: application/json
-
-{"code":"demo","url":"https://example.com"}
-```
-
-Follow the short code with `GET /s/:code`:
 
 ```bash
-curl -i http://127.0.0.1:3111/s/demo
+curl -i http://127.0.0.1:3111/s/learn-iii
 ```
 
 ```http
