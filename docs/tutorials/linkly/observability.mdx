@@ -1,6 +1,7 @@
 ---
 title: "Ch. 2: Observe everything"
-description: "Add logs and traces to Linkly's redirect path, then inspect them from the CLI and the console."
+description:
+  "Add logs and traces to Linkly's redirect path, then inspect them from the CLI and the console."
 owner: "devrel"
 type: "tutorial"
 ---
@@ -19,26 +20,17 @@ automatically:
 
 You read both with `engine::*` functions over `iii trigger`. No extra setup.
 
-## Add the console
-
-This chapter also uses the iii console, a browser UI for inspecting the engine. You open it at the end
-of the chapter; add it now so it is ready:
-
-```bash
-iii worker add console
-```
-
 ## Log the resolve
 
-`link::create` already logs. Add a matching line to `link::resolve` so every lookup is recorded. Edit
-`link/src/index.ts`:
+`link::create` already logs. Add a matching line to `link::resolve` so every lookup is recorded.
+Edit `link/src/index.ts`:
 
 ```typescript src/index.ts {3}
-worker.registerFunction('link::resolve', async (payload: { code: string }) => {
-  const url = store.resolve(payload.code)
-  logger.info('link resolved', { code: payload.code, found: url !== undefined })
-  return { url: url ?? null }
-})
+worker.registerFunction("link::resolve", async (payload: { code: string }) => {
+  const url = store.resolve(payload.code);
+  logger.info("link resolved", { code: payload.code, found: url !== undefined });
+  return { url: url ?? null };
+});
 ```
 
 Save the file (the worker reloads), then drive some traffic:
@@ -53,18 +45,22 @@ curl -s -o /dev/null http://127.0.0.1:3111/s/missing
 ## Read the logs
 
 ```bash
-iii trigger engine::logs::list limit=100
+iii trigger engine::logs::list limit=100 \
+  | jq '.logs[]
+      | select(.body == "link resolved")
+      | { body, "log.data": .attributes["log.data"], trace_id, service_name }'
 ```
 
-Each resolve produced an entry. Trimmed to the parts that matter:
+<Info>
+  The `jq` pipe filters the response down to the `link resolved` entries and keeps the parts that
+  matter for this tutorial, try removing it to see all the information the iii engine can provide.
+</Info>
 
 ```json
 {
   "body": "link resolved",
-  "attributes": {
-    "log.data": { "code": "iii", "found": true },
-    "trace_id": "6b20e1fe001742c25bb7dc570b57fe42"
-  },
+  "log.data": { "code": "iii", "found": true },
+  "trace_id": "6b20e1fe001742c25bb7dc570b57fe42",
   "service_name": "iii-node"
 }
 ```
@@ -83,56 +79,71 @@ iii trigger engine::traces::list name="GET /s/:code" limit=1
 Take the `trace_id` from the result and walk the whole request as a tree:
 
 ```bash
-iii trigger engine::traces::tree trace_id=<trace_id>
+iii trigger engine::traces::tree trace_id=<trace_id> | jq -r '
+  def walk(depth):
+    ("  " * depth // "") + .name + " (" + .service_name + ") "
+      + (((.end_time_unix_nano - .start_time_unix_nano) / 1e6 * 1000 | round) / 1000 | tostring) + " ms",
+    (.children[]? | walk(depth + 1));
+  .roots[] | walk(0)
+'
 ```
 
-You get the full path of one redirect, across two workers:
+<Info>
+  The `jq` pipe walks the nested `roots` tree, indenting each span by depth and printing its
+  `service_name` and duration in milliseconds. You get the full path of one redirect, across two
+  workers:
+</Info>
 
 ```text
-GET /s/:code                         (iii)      1.466 ms
-  call http::redirect                (iii)      1.407 ms
-    call http::redirect              (iii-node) 0.850 ms
-      handle_invocation link::resolve (iii)     0.445 ms
-        call link::resolve           (iii)      0.416 ms
-          call link::resolve         (iii-node) 0.124 ms
+GET /s/:code (iii) 2.32 ms
+  call http::redirect (iii) 2.228 ms
+    call http::redirect (iii-node) 1.335 ms
+      handle_invocation link::resolve (iii) 0.624 ms
+        call link::resolve (iii) 0.582 ms
+          call link::resolve (iii-node) 0.174 ms
 ```
 
-That is the redirect arriving through `iii-http`, calling `http::redirect` in `link`, which
-calls `link::resolve` back through the engine. The per-span timing shows where the request spends its
+That is the redirect arriving through `iii-http`, calling `http::redirect` in `link`, which calls
+`link::resolve` back through the engine. The per-span timing shows where the request spends its
 time: the view you reach for when a link feels slow.
 
 <Note>
-  Worker spans export on a short delay, so a brand-new request's trace can look truncated for a second
-  or two. Give it a moment, or read a slightly older trace.
+  Worker spans export on a short delay, so a brand-new request's trace can look truncated for a
+  second or two. Give it a moment, or read a slightly older trace.
 </Note>
-
-{/* TODO(validation): the worker-span export delay is being addressed; revisit this Note (and the polling in the e2e) once worker spans flush promptly. */}
 
 ## Find the slowest links
 
 To compare many requests, list the redirect spans sorted by duration, slowest first:
 
 ```bash
-iii trigger engine::traces::list name="GET /s/:code" sort_by=duration_ms sort_order=desc limit=10
+iii trigger engine::traces::list name="GET /s/:code" sort_by=duration_ms sort_order=desc limit=10 | jq -c '[.spans[] |
+  ((.end_time_unix_nano - .start_time_unix_nano) / 1e6 * 1000 | round / 1000)]'
 ```
 
 The slowest redirects rise to the top; open any one's `trace_id` with `engine::traces::tree` to see
 which hop is responsible.
 
-{/* TODO(validation): sort_by=duration_ms is currently inverted/unsorted, and 3xx/4xx responses are tagged span status "error"; both fixes are pending. Re-verify the ordering and the redirect span status once they land. */}
+{/* TODO(validation): sort_by=duration_ms is currently inverted/unsorted; re-verify the ordering once the engine fix lands. */}
 
 ## Open the console
 
-Reading observability data from the command line is fine for one trace. For a live view, open the
-console you added at the start at [http://127.0.0.1:3113](http://127.0.0.1:3113). It lists registered
-workers, triggers, and functions, shows invocations as they happen, and lets you click into any trace
-to see the same waterfall you walked, without leaving the page.
+Reading observability data from the command line is fine for one trace. For a live view, start the
+iii console, a browser UI for inspecting the engine:
 
-{/* TODO(validation): console UI inspected by serving check only (not driven in a browser here); re-verify the trace view once the span-status fix lands so redirects no longer show as errors. */}
+```bash
+iii console
+```
+
+Open it at [http://127.0.0.1:3113](http://127.0.0.1:3113). It lists registered workers, triggers,
+and functions, shows invocations as they happen, and lets you click into any trace to see the same
+waterfall you walked, without leaving the page.
+
+![iii console Traces page showing redirect spans sorted by duration with the waterfall for a selected GET /s/:code trace](/tutorials/linkly/console-traces.png)
 
 ## Conclusion
 
-Linkly is now observable: structured logs on the resolve path, a distributed trace for every redirect,
-and a console to watch them live. The links are still kept only in memory, though, so restarting the
-worker clears them. Next, in [Ch. 3: Persist everything](/tutorials/linkly/persistence), you move them into durable
-storage.
+Linkly is now observable: structured logs on the resolve path, a distributed trace for every
+redirect, and a console to watch them live. The links are still kept only in memory, though, so
+restarting the worker clears them. Next, in
+[Ch. 3: Persist everything](/tutorials/linkly/persistence), you move them into durable storage.

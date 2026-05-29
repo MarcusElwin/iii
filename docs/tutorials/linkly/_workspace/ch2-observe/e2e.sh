@@ -87,14 +87,17 @@ assert "console serves on :$CONSOLE_PORT" "200" "$ccode"
 # Note: the console is a browser UI; this only checks it serves. Clicking through
 # the trace explorer / function list is a manual step, not automated here.
 
+# --- 302 redirect span has status=ok ---
+# (Fixed in 0.16.x; previously tagged "error".) Pull recent GET /s/:code spans
+# and assert at least one with http=302 reports span status "ok".
+redirect_ok="$(iii trigger engine::traces::list --json '{"name":"GET /s/:code","limit":20}' 2>/dev/null \
+  | jq -r '[.spans[] | (.attributes | map({key: .[0], value: .[1]}) | from_entries | ."http.response.status_code") as $c | select($c == 302) | .status] | first // "missing"')"
+assert "302 redirect span has status=ok" "ok" "$redirect_ok"
+
 # --- TODO(re-verify after engine fix) ---
-# Two iii observability bugs are slated to be fixed before this tutorial ships.
-# Once fixed, add real assertions here (they would FAIL today, so they are not run):
-#   1. 3xx/4xx no longer tagged span status "error": assert the 302 redirect span
-#      has status "ok" (currently "error").
-#   2. engine::traces::list sort_by=duration_ms sorts correctly: assert `sort_order:
-#      "desc"` returns spans whose durations are non-increasing.
-# See ./verify/observe.py for a live reproduction of both bugs.
+# engine::traces::list sort_by=duration_ms is currently inverted/unsorted.
+# Once fixed, add an assertion that `sort_order: "desc"` returns spans whose
+# durations are non-increasing. See ./verify/observe.py for the live repro.
 
 echo
 if [ "$fail" -eq 0 ]; then echo "Ch2 e2e: PASS"; else echo "Ch2 e2e: FAIL"; fi

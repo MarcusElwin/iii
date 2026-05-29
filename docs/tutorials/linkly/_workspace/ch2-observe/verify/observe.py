@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Ch2 observability checks against a running iii engine.
 
-Reproduces two issues and shows the parts that work:
-  Issue 1 - non-2xx HTTP responses are tagged span status "error"
+  Issue 1 - RESOLVED in 0.16.x: 3xx redirects now tag span status "ok"
+            (was "error"). issue1_span_status() stays as a regression check.
+            Engine semantics: 1xx/2xx/3xx -> ok, 4xx/5xx -> error.
   Issue 2 - engine::traces::list sort_by=duration_ms is inverted / unsorted
   Works   - structured worker logs; the cross-worker trace waterfall
 
