@@ -19,22 +19,26 @@ iii project init linkly
 cd linkly
 ```
 
-## Add the HTTP worker
+## Add the workers you'll need
 
-Later in this chapter you serve the `link` worker over HTTP, which the `iii-http` worker provides.
-Add it now so it is ready when you register routes:
+Later in this chapter you'll serve the `link` worker over HTTP (provided by `iii-http`) and stash
+short-code → URL mappings in a key-value store (provided by `iii-state`). Add both now so they're
+ready when the `link` worker reaches for them:
 
 ```bash
 iii worker add iii-http
+iii worker add iii-state
 ```
 
-If you open `config.yaml` now you'll notice that the `iii-http` worker has been added, there are
-config options for it, and there are a few additional workers already included. These ones are
-common enough that iii ships them by default and actually uses them itself.
+If you open `config.yaml` now you'll notice both workers have been added, plus a few that iii ships
+by default and uses itself.
 
-You may also notice a iii.lock file, this is the file that iii uses to track worker dependencies and
-versions so that iii deployments can be repeatable. This is similar to lock files in other package
-managers.
+`iii-state` defaults to an in-memory store, which means restarting the engine clears every link.
+That's fine for this chapter; [Ch. 3: Persist everything](/tutorials/linkly/persistence) swaps in
+durable storage.
+
+You may also notice a iii.lock file: that's how iii tracks worker dependencies and versions so that
+iii deployments are repeatable. This is similar to lock files in other package managers.
 
 For now you don't need to edit anything in these files.
 
@@ -96,38 +100,16 @@ directly and reloads the worker whenever you save a change.
 }
 ```
 
-### Create an in-memory url store
-
-Linkly turns a short code into a long URL, so the worker needs somewhere to keep that mapping. For
-now we'll create a simple `link/src/store.ts` and keep the mapping in memory, the simplest thing
-that works. A later chapter will transform this into proper durable storage.
-
-```typescript src/store.ts
-export type Link = { code: string; url: string };
-
-export class LinkStore {
-  private links = new Map<string, string>();
-
-  create(url: string, code?: string): Link {
-    const resolved = code ?? this.makeCode();
-    this.links.set(resolved, url);
-    return { code: resolved, url };
-  }
-
-  resolve(code: string): string | undefined {
-    return this.links.get(code);
-  }
-
-  private makeCode(): string {
-    const c = "abcdefghijklmnopqrstuvwxyz0123456789";
-    return Array.from({ length: 6 }, () => c[Math.floor(Math.random() * c.length)]).join("");
-  }
-}
-```
+### Write the worker entry point
 
 `link/src/index.ts` is the worker's entry point. `registerWorker` opens the connection to the
 engine, and `registerFunction` publishes a function under a name like `link::create` that anything
 else on the engine can call.
+
+`link::create` and `link::resolve` store and look up the mapping by calling `state::set` and
+`state::get` on the `iii-state` worker through `worker.trigger`. Worker-to-worker calls always flow
+through the engine. The `link` worker doesn't import anything from `iii-state`; it just knows the
+function names.
 
 <Info>
   `index.ts` will already contain some example code, replace it completely with the code below.
@@ -135,27 +117,43 @@ else on the engine can call.
 
 ```typescript src/index.ts
 import { registerWorker, Logger } from "iii-sdk";
-import { LinkStore } from "./store.js";
 
 const worker = registerWorker(process.env.III_URL ?? "ws://localhost:49134", {
   workerName: "link",
 });
 const logger = new Logger();
-const store = new LinkStore();
+
+const CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
+
+function makeCode(): string {
+  let s = "";
+  for (let i = 0; i < 6; i++) s += CHARS[Math.floor(Math.random() * CHARS.length)];
+  return s;
+}
 
 worker.registerFunction("link::create", async (payload: { url: string; code?: string }) => {
-  const link = store.create(payload.url, payload.code);
-  logger.info("link created", link);
-  return link;
+  const code = payload.code ?? makeCode();
+  await worker.trigger({
+    function_id: "state::set",
+    payload: { scope: "links", key: code, value: { url: payload.url } },
+  });
+  logger.info("link created", { code, url: payload.url });
+  return { code, url: payload.url };
 });
 
 worker.registerFunction("link::resolve", async (payload: { code: string }) => {
-  const url = store.resolve(payload.code);
-  return { url: url ?? null };
+  const stored = await worker.trigger<{ scope: string; key: string }, { url: string } | null>({
+    function_id: "state::get",
+    payload: { scope: "links", key: payload.code },
+  });
+  return { url: stored?.url ?? null };
 });
 
 logger.info("link worker ready");
 ```
+
+The `state::set` / `state::get` calls pass a `scope` (`links`) and a `key` (the short code). Scopes
+keep different kinds of data in `iii-state` from colliding; later chapters add more.
 
 ## Start the engine
 
@@ -302,8 +300,8 @@ content-type: application/json
 {"code":"demo","url":"https://example.com"}
 ```
 
-The link is stored in the worker's memory now, but `GET /s/demo` has nowhere to go yet — there's no
-handler. Add one next.
+The link sits in `iii-state` now, but `GET /s/demo` has nowhere to go yet. There's no handler;
+add one next.
 
 ### Create a function to handle redirects
 
@@ -342,8 +340,8 @@ worker.registerTrigger({
 
 ### Follow the short code
 
-Since our link store is currently in memory only it gets cleared any time we update the `link`
-worker. We'll address that later but for now create a new redirect link and try it out:
+`iii-state` is in-memory in this chapter, so each time the engine restarts the previous link is
+gone. Chapter 3 swaps in durable storage. For now create a fresh link and try it out:
 
 ```bash
 curl -i -X POST http://127.0.0.1:3111/links \
@@ -375,8 +373,9 @@ HTTP/1.1 404 Not Found
 ## Conclusion
 
 You have built a real link shortener: a domain worker exposed over HTTP, where the same
-`link::create` and `link::resolve` functions serve both the command line and the web. Restarting the
-worker still clears every link, though: the map is only held in memory.
+`link::create` and `link::resolve` functions serve both the command line and the web. Restarting
+the engine still clears every link, though: `iii-state` is in-memory until Chapter 3 swaps it for
+durable storage.
 
 Next, in [Ch. 2: Observe everything](/tutorials/linkly/observability), you will add logs and traces
 and watch invocations flow through the engine in the console.

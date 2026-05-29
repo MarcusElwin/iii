@@ -46,12 +46,6 @@ workers:
     config:
       http_port: 3113
   - name: iii-state
-    config:
-      adapter:
-        name: kv
-        config:
-          store_method: file_based
-          file_path: ./data/state_store.db
   - name: database
     config:
       databases:

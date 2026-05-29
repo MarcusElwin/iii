@@ -40,3 +40,5 @@ workers:
   - name: console
     config:
       http_port: 3113
+
+  - name: iii-state

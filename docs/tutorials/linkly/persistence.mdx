@@ -1,105 +1,22 @@
 ---
 title: "Ch. 3: Persist everything"
-description:
-  "Move links out of worker memory into iii-state, then into a SQLite database for durable history."
+description: "Add a SQLite database for durable storage of links and a timestamped row for every click."
 owner: "devrel"
 type: "tutorial"
 ---
 
-So far the `link` worker keeps its links in an in-memory `Map`, so a restart loses every link. In
-this chapter you move that data out of the worker: first into `iii-state` as a hot cache that
-survives restarts, then into a `database` (SQLite) that holds the durable record of links and a
-timestamped row for every click on a short code.
+Linkly's links live in `iii-state`, which runs in-memory by default. Restart the engine and
+everything is gone. In this chapter you add a `database` worker (SQLite) that holds the durable
+record of links and a timestamped row for every click on a short code. `iii-state` stays in the
+picture as a fast read cache in front of the database.
 
-## Move the map into state
+<Info>
+  If you prefer to keep `iii-state` as the only persistence layer rather than introducing a database,
+  flip it to file-backed instead by setting `store_method: file_based` and a `file_path` in its
+  config. The rest of this chapter assumes the database route.
+</Info>
 
-`iii-state` is a key-value store that persists values to disk. Add it:
-
-```bash
-iii worker add iii-state
-```
-
-Its default config writes to a file, so values outlive a restart:
-
-```yaml config.yaml
-- name: iii-state
-  config:
-    adapter:
-      name: kv
-      config:
-        store_method: file_based
-        file_path: ./data/state_store.db
-```
-
-Now replace the in-memory store. Delete `link/src/store.ts` and add `link/src/codes.ts`, which holds
-the code generator:
-
-```typescript src/codes.ts
-const CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
-
-export function makeCode(): string {
-  let s = "";
-  for (let i = 0; i < 6; i++) {
-    s += CHARS[Math.floor(Math.random() * CHARS.length)];
-  }
-  return s;
-}
-```
-
-Then rewrite `link::create` and `link::resolve` in `link/src/index.ts` to read and write to the
-`state` kv-store instead of the `Map`. In this code we set a scope `links` and store each code as a
-`key`.
-
-Replace the first part of `link/src/index.ts` with:
-
-```typescript src/index.ts
-import { registerWorker, Logger } from "iii-sdk";
-import { makeCode } from "./codes.js";
-
-const worker = registerWorker(process.env.III_URL ?? "ws://localhost:49134", {
-  workerName: "link",
-});
-const logger = new Logger();
-
-worker.registerFunction("link::create", async (payload: { url: string; code?: string }) => {
-  const code = payload.code ?? makeCode();
-  await worker.trigger({
-    function_id: "state::set",
-    payload: { scope: "links", key: code, value: { url: payload.url } },
-  });
-  logger.info("link created", { code, url: payload.url });
-  return { code, url: payload.url };
-});
-
-worker.registerFunction("link::resolve", async (payload: { code: string }) => {
-  const cached = await worker.trigger<{ scope: string; key: string }, { url: string } | null>({
-    function_id: "state::get",
-    payload: { scope: "links", key: payload.code },
-  });
-  return { url: cached?.url ?? null };
-});
-```
-
-Save the file. Create a link, then restart the worker and resolve it again:
-
-```bash
-iii trigger link::create url=https://iii.dev code=iii
-iii worker restart link
-```
-
-Give the service a moment to completely start and then run:
-
-```bash
-iii trigger link::resolve code=iii
-```
-
-```json
-{ "url": "https://iii.dev" }
-```
-
-The link survives the restart because it now sits in `iii-state`, not in the worker.
-
-## Add durable history with a database
+## Add the database worker
 
 State is a fast cache, but you also want a durable record you can run SQL over: every link, and a
 timestamped row each time someone follows one. Add the `database` worker:
@@ -120,12 +37,13 @@ Point it at a SQLite file (no server to run):
 
 The worker owns its schema. Build up the changes to `link/src/index.ts` in pieces.
 
-First, import the HTTP types you'll need shortly and name the database:
+First, add the HTTP types you'll need shortly and name the database. Append the `ApiRequest` /
+`ApiResponse` import to the existing `iii-sdk` import line, and add the `DB` constant near the top
+of the file:
 
 ```typescript src/index.ts
 import { registerWorker, Logger } from "iii-sdk";
 import type { ApiRequest, ApiResponse } from "iii-sdk";
-import { makeCode } from "./codes.js";
 
 const DB = "primary";
 ```

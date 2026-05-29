@@ -37,3 +37,5 @@ workers:
       default_timeout: 30000
       host: 127.0.0.1
       port: 3111
+
+  - name: iii-state

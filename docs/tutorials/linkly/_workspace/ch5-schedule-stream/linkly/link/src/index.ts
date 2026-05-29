@@ -1,11 +1,19 @@
 import { registerWorker, Logger, TriggerAction } from 'iii-sdk'
 import type { ApiRequest, ApiResponse } from 'iii-sdk'
-import { makeCode } from './codes.js'
+
 
 const worker = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
   workerName: 'link',
 })
 const logger = new Logger()
+
+const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789'
+
+function makeCode(): string {
+  let s = ''
+  for (let i = 0; i < 6; i++) s += CHARS[Math.floor(Math.random() * CHARS.length)]
+  return s
+}
 
 const DB = 'primary'
 

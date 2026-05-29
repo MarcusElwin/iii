@@ -1,24 +1,37 @@
 import { registerWorker, Logger } from 'iii-sdk'
 import type { ApiRequest, ApiResponse } from 'iii-sdk'
-import { LinkStore } from './store.js'
 
 const worker = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
   workerName: 'link',
 })
 const logger = new Logger()
-const store = new LinkStore()
+
+const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789'
+
+function makeCode(): string {
+  let s = ''
+  for (let i = 0; i < 6; i++) s += CHARS[Math.floor(Math.random() * CHARS.length)]
+  return s
+}
 
 // --- Domain functions: callable with `iii trigger` ---
 
 worker.registerFunction('link::create', async (payload: { url: string; code?: string }) => {
-  const link = store.create(payload.url, payload.code)
-  logger.info('link created', link)
-  return link
+  const code = payload.code ?? makeCode()
+  await worker.trigger({
+    function_id: 'state::set',
+    payload: { scope: 'links', key: code, value: { url: payload.url } },
+  })
+  logger.info('link created', { code, url: payload.url })
+  return { code, url: payload.url }
 })
 
 worker.registerFunction('link::resolve', async (payload: { code: string }) => {
-  const url = store.resolve(payload.code)
-  return { url: url ?? null }
+  const stored = await worker.trigger<{ scope: string; key: string }, { url: string } | null>({
+    function_id: 'state::get',
+    payload: { scope: 'links', key: payload.code },
+  })
+  return { url: stored?.url ?? null }
 })
 
 // --- HTTP edge: added after `iii worker add iii-http` ---

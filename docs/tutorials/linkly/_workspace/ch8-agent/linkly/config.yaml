@@ -113,12 +113,6 @@ workers:
       - skills/iii/*.md
       - skills/directory/*.md
   - name: iii-state
-    config:
-      adapter:
-        config:
-          file_path: ./data/state_store.db
-          store_method: file_based
-        name: kv
   - name: iii-stream
     config:
       adapter:

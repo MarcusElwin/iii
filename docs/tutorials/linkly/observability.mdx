@@ -25,11 +25,14 @@ You read both with `engine::*` functions over `iii trigger`. No extra setup.
 `link::create` already logs. Add a matching line to `link::resolve` so every lookup is recorded.
 Edit `link/src/index.ts`:
 
-```typescript src/index.ts {3}
+```typescript src/index.ts {6}
 worker.registerFunction("link::resolve", async (payload: { code: string }) => {
-  const url = store.resolve(payload.code);
-  logger.info("link resolved", { code: payload.code, found: url !== undefined });
-  return { url: url ?? null };
+  const stored = await worker.trigger<{ scope: string; key: string }, { url: string } | null>({
+    function_id: "state::get",
+    payload: { scope: "links", key: payload.code },
+  });
+  logger.info("link resolved", { code: payload.code, found: stored !== null });
+  return { url: stored?.url ?? null };
 });
 ```
 
