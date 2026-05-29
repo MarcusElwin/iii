@@ -1,14 +1,15 @@
 ---
 title: "Ch. 3: Persist everything"
-description: "Move links out of worker memory into iii-state, then into a SQLite database for durable history."
+description:
+  "Move links out of worker memory into iii-state, then into a SQLite database for durable history."
 owner: "devrel"
 type: "tutorial"
 ---
 
-So far the `link` worker keeps its links in an in-memory `Map`, so a restart loses every link. In this
-chapter you move that data out of the worker: first into `iii-state` as a hot cache that survives
-restarts, then into a `database` (SQLite) that holds the durable record of links and a timestamped
-row for every click on a short code.
+So far the `link` worker keeps its links in an in-memory `Map`, so a restart loses every link. In
+this chapter you move that data out of the worker: first into `iii-state` as a hot cache that
+survives restarts, then into a `database` (SQLite) that holds the durable record of links and a
+timestamped row for every click on a short code.
 
 ## Move the map into state
 
@@ -21,59 +22,62 @@ iii worker add iii-state
 Its default config writes to a file, so values outlive a restart:
 
 ```yaml config.yaml
-  - name: iii-state
-    config:
-      adapter:
-        name: kv
-        config:
-          store_method: file_based
-          file_path: ./data/state_store.db
+- name: iii-state
+  config:
+    adapter:
+      name: kv
+      config:
+        store_method: file_based
+        file_path: ./data/state_store.db
 ```
 
-Now replace the in-memory store. Delete `link/src/store.ts` and add
-`link/src/codes.ts`, which holds the code generator:
+Now replace the in-memory store. Delete `link/src/store.ts` and add `link/src/codes.ts`, which holds
+the code generator:
 
 ```typescript src/codes.ts
-const CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789'
+const CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
 export function makeCode(): string {
-  let s = ''
+  let s = "";
   for (let i = 0; i < 6; i++) {
-    s += CHARS[Math.floor(Math.random() * CHARS.length)]
+    s += CHARS[Math.floor(Math.random() * CHARS.length)];
   }
-  return s
+  return s;
 }
 ```
 
-Then rewrite `link::create` and `link::resolve` in `link/src/index.ts` to read and write
-`iii-state` instead of the `Map`. A value is stored under a `scope` (`links`) and a `key` (the code):
+Then rewrite `link::create` and `link::resolve` in `link/src/index.ts` to read and write to the
+`state` kv-store instead of the `Map`. In this code we set a scope `links` and store each code as a
+`key`.
+
+Replace the first part of `link/src/index.ts` with:
 
 ```typescript src/index.ts
-import { registerWorker, Logger } from 'iii-sdk'
-import { makeCode } from './codes.js'
+import { registerWorker, Logger } from "iii-sdk";
+import { makeCode } from "./codes.js";
 
-const worker = registerWorker(process.env.III_URL ?? 'ws://localhost:49134', {
-  workerName: 'link',
-})
-const logger = new Logger()
+const worker = registerWorker(process.env.III_URL ?? "ws://localhost:49134", {
+  workerName: "link",
+});
+const logger = new Logger();
 
-worker.registerFunction('link::create', async (payload: { url: string; code?: string }) => {
-  const code = payload.code ?? makeCode()
+worker.registerFunction("link::create", async (payload: { url: string; code?: string }) => {
+  const code = payload.code ?? makeCode();
   await worker.trigger({
-    function_id: 'state::set',
-    payload: { scope: 'links', key: code, value: { url: payload.url } },
-  })
-  logger.info('link created', { code, url: payload.url })
-  return { code, url: payload.url }
-})
+    function_id: "state::set",
+    payload: { scope: "links", key: code, value: { url: payload.url } },
+  });
+  logger.info("link created", { code, url: payload.url });
+  return { code, url: payload.url };
+});
 
-worker.registerFunction('link::resolve', async (payload: { code: string }) => {
+worker.registerFunction("link::resolve", async (payload: { code: string }) => {
   const cached = await worker.trigger<{ scope: string; key: string }, { url: string } | null>({
-    function_id: 'state::get',
-    payload: { scope: 'links', key: payload.code },
-  })
-  return { url: cached?.url ?? null }
-})
+    function_id: "state::get",
+    payload: { scope: "links", key: payload.code },
+  });
+  return { url: cached?.url ?? null };
+});
 ```
 
 Save the file. Create a link, then restart the worker and resolve it again:
@@ -81,6 +85,11 @@ Save the file. Create a link, then restart the worker and resolve it again:
 ```bash
 iii trigger link::create url=https://iii.dev code=iii
 iii worker restart link
+```
+
+Give the service a moment to completely start and then run:
+
+```bash
 iii trigger link::resolve code=iii
 ```
 
@@ -102,11 +111,11 @@ iii worker add database
 Point it at a SQLite file (no server to run):
 
 ```yaml config.yaml
-  - name: database
-    config:
-      databases:
-        primary:
-          url: sqlite:./data/iii.db
+- name: database
+  config:
+    databases:
+      primary:
+        url: sqlite:./data/iii.db
 ```
 
 The worker owns its schema. Build up the changes to `link/src/index.ts` in pieces.
@@ -114,126 +123,125 @@ The worker owns its schema. Build up the changes to `link/src/index.ts` in piece
 First, import the HTTP types you'll need shortly and name the database:
 
 ```typescript src/index.ts
-import { registerWorker, Logger } from 'iii-sdk'
-import type { ApiRequest, ApiResponse } from 'iii-sdk'
-import { makeCode } from './codes.js'
+import { registerWorker, Logger } from "iii-sdk";
+import type { ApiRequest, ApiResponse } from "iii-sdk";
+import { makeCode } from "./codes.js";
 
-const DB = 'primary'
+const DB = "primary";
 ```
 
-Add an `ensureSchema()` function that creates both tables on startup. The
-database worker accepts SQL through its `database::execute` function:
+Add an `ensureSchema()` function that creates both tables on startup. The database worker accepts
+SQL through its `database::execute` function:
 
 ```typescript src/index.ts
 async function ensureSchema(): Promise<void> {
   await worker.trigger({
-    function_id: 'database::execute',
+    function_id: "database::execute",
     payload: {
       db: DB,
-      sql: 'CREATE TABLE IF NOT EXISTS links (code TEXT PRIMARY KEY, url TEXT NOT NULL, created_at TEXT NOT NULL)',
+      sql: "CREATE TABLE IF NOT EXISTS links (code TEXT PRIMARY KEY, url TEXT NOT NULL, created_at TEXT NOT NULL)",
     },
-  })
+  });
   await worker.trigger({
-    function_id: 'database::execute',
+    function_id: "database::execute",
     payload: {
       db: DB,
-      sql: 'CREATE TABLE IF NOT EXISTS clicks (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL, clicked_at TEXT NOT NULL)',
+      sql: "CREATE TABLE IF NOT EXISTS clicks (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL, clicked_at TEXT NOT NULL)",
     },
-  })
+  });
 }
 ```
 
-Change `link::create` to write to both the database (durable record) and
-`iii-state` (hot cache). The state write and log line stay; the database call
-is new in front of them:
+Change `link::create` to write to both the database (durable record) and `iii-state` (hot cache).
+The state write and log line stay; the database call is new in front of them:
 
 ```typescript src/index.ts {3-10}
-worker.registerFunction('link::create', async (payload: { url: string; code?: string }) => {
-  const code = payload.code ?? makeCode()
+worker.registerFunction("link::create", async (payload: { url: string; code?: string }) => {
+  const code = payload.code ?? makeCode();
   await worker.trigger({
-    function_id: 'database::execute',
+    function_id: "database::execute",
     payload: {
       db: DB,
-      sql: 'INSERT INTO links (code, url, created_at) VALUES (?, ?, ?)',
+      sql: "INSERT INTO links (code, url, created_at) VALUES (?, ?, ?)",
       params: [code, payload.url, new Date().toISOString()],
     },
-  })
+  });
   await worker.trigger({
-    function_id: 'state::set',
-    payload: { scope: 'links', key: code, value: { url: payload.url } },
-  })
-  logger.info('link created', { code, url: payload.url })
-  return { code, url: payload.url }
-})
+    function_id: "state::set",
+    payload: { scope: "links", key: code, value: { url: payload.url } },
+  });
+  logger.info("link created", { code, url: payload.url });
+  return { code, url: payload.url };
+});
 ```
 
-Change `link::resolve` to check the cache first; on a miss, fall back to the
-database and warm the cache for the next read:
+Change `link::resolve` to check the cache first; on a miss, fall back to the database and warm the
+cache for the next read:
 
 ```typescript src/index.ts
-worker.registerFunction('link::resolve', async (payload: { code: string }) => {
+worker.registerFunction("link::resolve", async (payload: { code: string }) => {
   const cached = await worker.trigger<{ scope: string; key: string }, { url: string } | null>({
-    function_id: 'state::get',
-    payload: { scope: 'links', key: payload.code },
-  })
+    function_id: "state::get",
+    payload: { scope: "links", key: payload.code },
+  });
   if (cached) {
-    return { url: cached.url }
+    return { url: cached.url };
   }
   const { rows } = await worker.trigger<
     { db: string; sql: string; params: string[] },
     { rows: Array<{ url: string }> }
   >({
-    function_id: 'database::query',
-    payload: { db: DB, sql: 'SELECT url FROM links WHERE code = ?', params: [payload.code] },
-  })
-  const url = rows[0]?.url ?? null
+    function_id: "database::query",
+    payload: { db: DB, sql: "SELECT url FROM links WHERE code = ?", params: [payload.code] },
+  });
+  const url = rows[0]?.url ?? null;
   if (url) {
     await worker.trigger({
-      function_id: 'state::set',
-      payload: { scope: 'links', key: payload.code, value: { url } },
-    })
+      function_id: "state::set",
+      payload: { scope: "links", key: payload.code, value: { url } },
+    });
   }
-  return { url }
-})
+  return { url };
+});
 ```
 
-Update `http::redirect` so it inserts a timestamped row into `clicks` before
-returning the redirect. (The next chapter moves that write off this hot path
-onto a queue.) The resolve + 404 + 302 are from Chapter 1; the insert is new:
+Update `http::redirect` so it inserts a timestamped row into `clicks` before returning the redirect.
+(The next chapter moves that write off this hot path onto a queue.) The resolve + 404 + 302 are from
+Chapter 1; the insert is new:
 
 ```typescript src/index.ts {14-21}
-worker.registerFunction('http::redirect', async (req: ApiRequest): Promise<ApiResponse> => {
-  const code = req.path_params.code
+worker.registerFunction("http::redirect", async (req: ApiRequest): Promise<ApiResponse> => {
+  const code = req.path_params.code;
   const { url } = await worker.trigger<{ code: string }, { url: string | null }>({
-    function_id: 'link::resolve',
+    function_id: "link::resolve",
     payload: { code },
-  })
+  });
   if (!url) {
     return {
       status_code: 404,
-      body: { error: 'link not found' },
-      headers: { 'Content-Type': 'application/json' },
-    }
+      body: { error: "link not found" },
+      headers: { "Content-Type": "application/json" },
+    };
   }
   await worker.trigger({
-    function_id: 'database::execute',
+    function_id: "database::execute",
     payload: {
       db: DB,
-      sql: 'INSERT INTO clicks (code, clicked_at) VALUES (?, ?)',
+      sql: "INSERT INTO clicks (code, clicked_at) VALUES (?, ?)",
       params: [code, new Date().toISOString()],
     },
-  })
-  return { status_code: 302, headers: { Location: url } }
-})
+  });
+  return { status_code: 302, headers: { Location: url } };
+});
 ```
 
-Finally, call `ensureSchema()` once when the worker starts, replacing the
-existing `logger.info` line at the bottom of the file:
+Finally, call `ensureSchema()` once when the worker starts, replacing the existing `logger.info`
+line at the bottom of the file:
 
 ```typescript src/index.ts
 ensureSchema()
-  .then(() => logger.info('link worker ready'))
-  .catch((err) => logger.error('schema init failed', { error: String(err) }))
+  .then(() => logger.info("link worker ready"))
+  .catch((err) => logger.error("schema init failed", { error: String(err) }));
 ```
 
 Save the file, create a link, and follow it a few times:
