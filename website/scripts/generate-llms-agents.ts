@@ -154,6 +154,14 @@ SDKs:
 - Node (browser, RBAC-scoped): \`npm install iii-browser-sdk\`
 - Python: \`pip install iii-sdk\`
 
+## Guardrails
+
+- Function IDs use \`::\` (e.g. \`orders::validate\`)
+- HTTP \`api_path\` values use a leading slash (e.g. \`/orders/validate\`)
+- Cron triggers use config field \`expression\`, not \`cron\`
+- Call functions via the SDK from workers — use \`iii trigger\` only for manual debugging
+- Engine listeners and ports come from \`config.yaml\`; use \`iii console\` for observability
+
 Last updated: ${isoDate()}
 `.trimStart()
 

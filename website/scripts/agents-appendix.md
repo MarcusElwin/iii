@@ -44,6 +44,16 @@ Install an SDK:
 
 Full docs: https://iii.dev/docs
 
+## Guardrails
+
+Wire-level conventions agents should follow:
+
+- Function IDs use `::` (e.g. `orders::validate`)
+- HTTP `api_path` values use a leading slash (e.g. `/orders/validate`)
+- Cron triggers use config field `expression`, not `cron`
+- Call functions via the SDK from workers — use `iii trigger` only for manual debugging, not app automation
+- Engine listeners and ports come from `config.yaml`; use `iii console` for observability
+
 ## Harness composition as a shape, not a product
 
 The thin-vs-thick harness debate is a composition choice in iii. A thin harness is a worker with a few functions that lets the model decide what to trigger next. A thick harness is a worker with more functions, approval gates, and conditional logic before enqueuing the next step. Same primitives, different shape. Change the shape by adding or removing functions, not by rearchitecting.

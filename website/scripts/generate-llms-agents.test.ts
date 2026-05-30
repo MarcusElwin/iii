@@ -26,6 +26,7 @@ test('buildLlmsTxt follows llms.txt-style shape (H1, blockquote, sections)', asy
   assert.ok(text.includes('> iii turns distributed'))
   assert.ok(text.includes('## Core pages'))
   assert.ok(text.includes('[llms.txt](https://iii.dev/llms.txt)'))
+  assert.ok(text.includes('## Guardrails'))
   assert.ok(text.includes('Homepage copy (extracted'))
 })
 
@@ -46,5 +47,6 @@ test('buildAgentsMd includes agents.md framing and appendix', async () => {
   assert.ok(md.includes('agents.md'))
   assert.ok(md.includes('## Overview and comparisons'))
   assert.ok(md.includes('## Primitives (wire-level)'))
+  assert.ok(md.includes('## Guardrails'))
   assert.ok(md.includes('Last updated:'))
 })
