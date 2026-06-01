@@ -1,0 +1,148 @@
+# iii Go SDK
+
+Go SDK for the [iii engine](https://github.com/iii-hq/iii). A process becomes an iii
+**worker** by opening a single WebSocket to the engine and registering **functions** and
+**triggers**; the engine invokes those functions and the worker replies over the same
+socket.
+
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../../../LICENSE)
+
+## Install
+
+```bash
+go get github.com/iii-hq/iii/sdk/packages/go/iii
+```
+
+Requires Go 1.23+.
+
+## Hello World
+
+```go
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"log"
+
+	iii "github.com/iii-hq/iii/sdk/packages/go/iii"
+)
+
+func main() {
+	client := iii.New(iii.DefaultEngineURL) // ws://localhost:49134
+
+	client.RegisterFunction("hello::greet", func(ctx context.Context, data json.RawMessage) (any, error) {
+		var in struct{ Name string `json:"name"` }
+		if err := json.Unmarshal(data, &in); err != nil {
+			return nil, err
+		}
+		return map[string]string{"message": "Hello, " + in.Name + "!"}, nil
+	})
+
+	client.RegisterTrigger("hello-http", "http", "hello::greet",
+		json.RawMessage(`{"api_path":"/greet","http_method":"POST"}`), nil)
+
+	if err := client.Connect(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+	defer client.Close()
+
+	result, err := client.Trigger(context.Background(), iii.TriggerRequest{
+		FunctionID: "hello::greet",
+		Data:       json.RawMessage(`{"name":"world"}`),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("result: %s", result) // {"message":"Hello, world!"}
+}
+```
+
+A complete, runnable version lives in [`example/`](./example).
+
+## API
+
+| Operation | Signature | Description |
+| --- | --- | --- |
+| Create | `iii.New(url, opts...) *Client` | Build a client for the engine. Does not connect. |
+| Connect | `client.Connect(ctx) error` | Start the connection lifecycle; blocks until connected. |
+| Register function | `client.RegisterFunction(id, handler) error` | Register a function the engine can invoke by name. |
+| Register trigger | `client.RegisterTrigger(id, triggerType, functionID, config, metadata) error` | Bind a trigger (HTTP, cron, queue, …) to a function. |
+| Register trigger type | `client.RegisterTriggerType(id, description, handler) error` | Implement a custom trigger type. |
+| Invoke (await) | `client.Trigger(ctx, TriggerRequest{...})` | Invoke a function and wait for the result. |
+| Invoke (fire-and-forget) | `client.Trigger(ctx, TriggerRequest{Action: iii.VoidAction()})` | Invoke without waiting. |
+| Invoke (enqueue) | `client.Trigger(ctx, TriggerRequest{Action: iii.EnqueueAction("queue")})` | Route the invocation through a named queue. |
+| Close | `client.Close() error` | Stop reconnecting, cancel pending calls, close the socket. |
+
+`Register*` may be called before or after `Connect`; registrations are kept in memory and
+(re)sent to the engine on every (re)connection.
+
+### Registering functions
+
+A handler receives the raw JSON payload and returns any value (marshaled into the
+invocation result) or an error:
+
+```go
+client.RegisterFunction("orders::create", func(ctx context.Context, data json.RawMessage) (any, error) {
+	var in struct {
+		Item string `json:"item"`
+	}
+	if err := json.Unmarshal(data, &in); err != nil {
+		return nil, err
+	}
+	return map[string]any{"id": "123", "item": in.Item}, nil
+})
+```
+
+Returning an `*iii.InvocationError` preserves its `Code` on the wire; any other error is
+reported with code `invocation_failed`. A handler panic is recovered and reported the
+same way, so a caller gets an error rather than a timeout.
+
+### Invoking functions
+
+```go
+// Await the result.
+res, err := client.Trigger(ctx, iii.TriggerRequest{
+	FunctionID: "orders::create",
+	Data:       json.RawMessage(`{"item":"widget"}`),
+})
+
+// Fire-and-forget (e.g. logging).
+client.Trigger(ctx, iii.TriggerRequest{
+	FunctionID: iii.LogInfo,
+	Data:       json.RawMessage(`{"message":"page_view"}`),
+	Action:     iii.VoidAction(),
+})
+
+// Enqueue through a named queue and await the receipt.
+client.Trigger(ctx, iii.TriggerRequest{
+	FunctionID: "jobs::process",
+	Action:     iii.EnqueueAction("jobs"),
+})
+```
+
+Errors are typed: `errors.Is(err, iii.ErrTimeout)` for a missed deadline,
+`errors.Is(err, iii.ErrNotConnected)` for a call cancelled by shutdown, and
+`errors.As(err, &ie)` for an `*iii.InvocationError` (carrying the remote `Code`,
+`Message`, and `Stacktrace`).
+
+## Connection behavior
+
+- **Reconnect** with exponential backoff and jitter (start 1s, ×2, cap 30s, ±30%, retry
+  forever). Override with `iii.WithReconnectConfig`.
+- **Offline buffer**: invocations sent while disconnected are buffered and flushed on
+  reconnect; registrations are replayed from the in-memory registries.
+- **Worker metadata** is registered last on each connect, tagged `runtime: "go"`.
+
+## Observability
+
+The wire protocol carries W3C trace context (`traceparent` / `baggage`) across the
+engine→worker→engine hop, and the SDK echoes it back on results. Wiring it to an
+OpenTelemetry SDK (real spans around invocations) is planned as a follow-up; see
+[iii-hq/iii#1719](https://github.com/iii-hq/iii/issues/1719).
+
+## Resources
+
+- [iii engine](https://github.com/iii-hq/iii)
+- [Node SDK](../../node/iii) · [Rust SDK](../../rust/iii) — the references this SDK mirrors
+- [Documentation](https://iii.dev/docs)
