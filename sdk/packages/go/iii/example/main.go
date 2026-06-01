@@ -22,14 +22,24 @@ import (
 	iii "github.com/iii-hq/iii/sdk/packages/go/iii"
 )
 
-// greetInput is the payload hello::greet expects.
-type greetInput struct {
+// httpRequest is the subset of the engine's HTTP-trigger ApiRequest envelope this
+// example reads. When a function is invoked via an "http" trigger, the engine wraps the
+// request as { path, method, body, headers, ... } and the parsed request body lives
+// under "body" — not at the top level. See engine/src/workers/rest_api/README.md.
+type httpRequest struct {
+	Body greetBody `json:"body"`
+}
+
+type greetBody struct {
 	Name string `json:"name"`
 }
 
-// greetOutput is what it returns.
-type greetOutput struct {
-	Message string `json:"message"`
+// httpResponse is the engine's HTTP-trigger ApiResponse envelope: the function must
+// return { status_code, body } for the HTTP worker to build a response. Returning the
+// payload directly would yield an empty HTTP body.
+type httpResponse struct {
+	StatusCode int `json:"status_code"`
+	Body       any `json:"body"`
 }
 
 func main() {
@@ -41,16 +51,22 @@ func main() {
 	client := iii.New(url)
 
 	// Register the function. The handler receives the raw JSON payload and returns any
-	// value, which the SDK marshals into the invocation result.
+	// value, which the SDK marshals into the invocation result. Because this function is
+	// exposed over HTTP, it speaks the engine's HTTP envelope: read the request from
+	// req.Body and return an ApiResponse { status_code, body }.
 	if err := client.RegisterFunction("hello::greet", func(ctx context.Context, data json.RawMessage) (any, error) {
-		var in greetInput
-		if err := json.Unmarshal(data, &in); err != nil {
+		var req httpRequest
+		if err := json.Unmarshal(data, &req); err != nil {
 			return nil, err
 		}
-		if in.Name == "" {
-			in.Name = "world"
+		name := req.Body.Name
+		if name == "" {
+			name = "world"
 		}
-		return greetOutput{Message: "Hello, " + in.Name + "!"}, nil
+		return httpResponse{
+			StatusCode: 200,
+			Body:       map[string]string{"message": "Hello, " + name + "!"},
+		}, nil
 	}); err != nil {
 		log.Fatalf("register function: %v", err)
 	}
@@ -75,12 +91,14 @@ func main() {
 	defer client.Close()
 	log.Printf("worker connected to %s", url)
 
-	// Invoke the function once over the socket to show the await round trip.
+	// Invoke the function once over the socket to show the await round trip. The payload
+	// uses the same HTTP envelope the handler reads (body.name), so this matches what the
+	// engine sends for a POST /greet.
 	callCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	result, err := client.Trigger(callCtx, iii.TriggerRequest{
 		FunctionID: "hello::greet",
-		Data:       json.RawMessage(`{"name":"world"}`),
+		Data:       json.RawMessage(`{"body":{"name":"world"}}`),
 	})
 	if err != nil {
 		log.Printf("trigger hello::greet: %v", err)

@@ -31,12 +31,21 @@ import (
 func main() {
 	client := iii.New(iii.DefaultEngineURL) // ws://localhost:49134
 
+	// Exposed over HTTP, so the handler speaks the engine's HTTP envelope: the request
+	// body is under "body", and the response is { status_code, body }.
 	client.RegisterFunction("hello::greet", func(ctx context.Context, data json.RawMessage) (any, error) {
-		var in struct{ Name string `json:"name"` }
-		if err := json.Unmarshal(data, &in); err != nil {
+		var req struct {
+			Body struct {
+				Name string `json:"name"`
+			} `json:"body"`
+		}
+		if err := json.Unmarshal(data, &req); err != nil {
 			return nil, err
 		}
-		return map[string]string{"message": "Hello, " + in.Name + "!"}, nil
+		return map[string]any{
+			"status_code": 200,
+			"body":        map[string]string{"message": "Hello, " + req.Body.Name + "!"},
+		}, nil
 	})
 
 	client.RegisterTrigger("hello-http", "http", "hello::greet",
@@ -49,14 +58,20 @@ func main() {
 
 	result, err := client.Trigger(context.Background(), iii.TriggerRequest{
 		FunctionID: "hello::greet",
-		Data:       json.RawMessage(`{"name":"world"}`),
+		Data:       json.RawMessage(`{"body":{"name":"world"}}`),
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("result: %s", result) // {"message":"Hello, world!"}
+	log.Printf("result: %s", result) // {"status_code":200,"body":{"message":"Hello, world!"}}
 }
 ```
+
+> **HTTP trigger envelope.** When a function is reached over an `http` trigger, the
+> engine wraps the request as `{ path, method, body, headers, … }` and expects the
+> function to return `{ status_code, body }`. Functions invoked only over the socket can
+> use any payload shape. See the engine's
+> [REST API docs](../../../engine/src/workers/rest_api/README.md).
 
 A complete, runnable version lives in [`example/`](./example).
 
