@@ -5,8 +5,8 @@
 //
 // Run it against a local engine:
 //
-//	iii project init      # in another terminal, starts the engine on :49134 / :3111
-//	go run ./example       # from sdk/packages/go/iii
+//	iii --use-default-config   # in another terminal, engine on :49134 / :3111
+//	go run .                   # from sdk/packages/go/iii-example
 //	curl -X POST localhost:3111/greet -d '{"name":"world"}'
 package main
 

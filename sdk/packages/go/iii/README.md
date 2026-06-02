@@ -73,7 +73,7 @@ func main() {
 > use any payload shape. See the engine's
 > [REST API docs](../../../engine/src/workers/rest_api/README.md).
 
-A complete, runnable version lives in [`example/`](./example).
+A complete, runnable version lives in the [`iii-example`](../iii-example) module.
 
 ## API
 
@@ -186,4 +186,5 @@ OpenTelemetry SDK (real spans around invocations) is planned as a follow-up; see
 
 - [iii engine](https://github.com/iii-hq/iii)
 - [Node SDK](../../node/iii) · [Rust SDK](../../rust/iii) — the references this SDK mirrors
+- [Examples](https://github.com/iii-hq/iii-examples) (and a runnable Go worker in [`iii-example`](../iii-example))
 - [Documentation](https://iii.dev/docs)
