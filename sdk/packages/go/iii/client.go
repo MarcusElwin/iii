@@ -133,6 +133,10 @@ func defaultWorkerName() string {
 	return fmt.Sprintf("%s:%d", host, os.Getpid())
 }
 
+// Address returns the engine WebSocket base URL this client dials (e.g.
+// "ws://localhost:49134"). Channel readers/writers build their own URLs from it.
+func (c *Client) Address() string { return c.url }
+
 // State returns the current connection state.
 func (c *Client) State() ConnectionState {
 	c.mu.Lock()

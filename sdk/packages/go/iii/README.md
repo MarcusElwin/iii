@@ -87,6 +87,7 @@ A complete, runnable version lives in [`example/`](./example).
 | Invoke (await) | `client.Trigger(ctx, TriggerRequest{...})` | Invoke a function and wait for the result. |
 | Invoke (fire-and-forget) | `client.Trigger(ctx, TriggerRequest{Action: iii.VoidAction()})` | Invoke without waiting. |
 | Invoke (enqueue) | `client.Trigger(ctx, TriggerRequest{Action: iii.EnqueueAction("queue")})` | Route the invocation through a named queue. |
+| Create channel | `client.CreateChannel(ctx, bufferSize)` | Open a streaming data channel (writer + reader ends). |
 | Close | `client.Close() error` | Stop reconnecting, cancel pending calls, close the socket. |
 
 `Register*` may be called before or after `Connect`; registrations are kept in memory and
@@ -148,6 +149,31 @@ Errors are typed: `errors.Is(err, iii.ErrTimeout)` for a missed deadline,
 - **Offline buffer**: invocations sent while disconnected are buffered and flushed on
   reconnect; registrations are replayed from the in-memory registries.
 - **Worker metadata** is registered last on each connect, tagged `runtime: "go"`.
+
+## Streaming channels
+
+For bulk or streaming data, open a channel instead of passing everything through a single
+invocation result. `CreateChannel` returns a writer and a reader, each backed by its own
+WebSocket; pass either end's ref (`WriterRef` / `ReaderRef`) to another worker inside a
+trigger payload, and it opens the opposite end.
+
+```go
+ch, err := client.CreateChannel(ctx, nil)
+// stream bytes...
+ch.Writer.Write(ctx, payload)        // binary frames (64 KiB chunks)
+ch.Writer.SendMessage(ctx, progress) // discrete text message
+ch.Writer.Close()                    // signals end-of-stream
+
+// hand ch.ReaderRef to a processor function via Trigger; on that side:
+refs, _ := iii.ExtractChannelRefs(data)
+reader := iii.OpenReader(client.Address(), refs["reader"])
+reader.OnMessage(func(m string) { /* text messages */ })
+all, _ := reader.ReadAll(ctx)        // binary stream, until the writer closes
+```
+
+On a channel socket, **a text frame is a message** (`SendMessage` / `OnMessage`) and **a
+binary frame is stream data** (`Write` / `ReadAll`) — disambiguated by WebSocket opcode,
+no envelope. The writer ends the stream with `Close`; the reader sees that as EOF.
 
 ## Observability
 

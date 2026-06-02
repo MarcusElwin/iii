@@ -98,6 +98,26 @@ type HTTPInvocationRef struct {
 	Auth      json.RawMessage   `json:"auth,omitempty"`
 }
 
+// ChannelDirection is the end of a streaming channel a StreamChannelRef refers to.
+// The engine serializes it lowercase (engine/src/protocol.rs:198-201).
+type ChannelDirection string
+
+const (
+	ChannelRead  ChannelDirection = "read"
+	ChannelWrite ChannelDirection = "write"
+)
+
+// StreamChannelRef is a capability handle to one end of a streaming data channel
+// (engine/src/protocol.rs:203-211). The engine's engine::channels::create returns a
+// writer ref and a reader ref that share a channel_id and access_key; a ref travels as
+// plain JSON inside a trigger payload or result, and the holder opens its own WebSocket
+// to the channel with it (see channels.go).
+type StreamChannelRef struct {
+	ChannelID string           `json:"channel_id"`
+	AccessKey string           `json:"access_key"`
+	Direction ChannelDirection `json:"direction"`
+}
+
 // The message structs below each correspond to one variant of the engine's Message
 // enum (engine/src/protocol.rs:42-126). They deliberately do NOT carry the "type"
 // field themselves: it is injected on marshal and stripped on unmarshal by the

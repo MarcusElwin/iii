@@ -30,6 +30,7 @@ const (
 	FnListRegisteredTriggers = "engine::registered-triggers::list"
 	FnInfoRegisteredTriggers = "engine::registered-triggers::info"
 	FnRegisterWorker         = "engine::workers::register"
+	FnCreateChannel          = "engine::channels::create"
 )
 
 // Engine trigger types. Mirrors EngineTriggers in iii-constants.ts.
