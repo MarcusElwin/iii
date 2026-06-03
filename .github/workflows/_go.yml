@@ -103,7 +103,26 @@ jobs:
         env:
           GOPROXY: proxy.golang.org
           GOFLAGS: -mod=mod
-        run: go list -m ${{ inputs.module_path }}@v${{ inputs.version }}
+          MODULE_PATH: ${{ inputs.module_path }}
+          VERSION: ${{ inputs.version }}
+        # Pass inputs through quoted env vars rather than interpolating them into the
+        # command, and validate the version shape, so a malformed input can't be abused by
+        # the shell. The proxy is eventually-consistent right after a tag push, so retry a
+        # few times before failing.
+        run: |
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$'; then
+            echo "Refusing to resolve: invalid version '$VERSION'" >&2
+            exit 1
+          fi
+          for attempt in 1 2 3 4 5; do
+            if go list -m "${MODULE_PATH}@v${VERSION}"; then
+              exit 0
+            fi
+            echo "proxy not ready (attempt $attempt), retrying in 10s..." >&2
+            sleep 10
+          done
+          echo "proxy did not resolve ${MODULE_PATH}@v${VERSION} after retries" >&2
+          exit 1
 
       - name: Notify Slack — result
         if: always() && steps.slack.outputs.ts != ''

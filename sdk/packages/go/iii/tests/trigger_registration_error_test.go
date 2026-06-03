@@ -5,6 +5,7 @@ package iii_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,8 +25,9 @@ func TestRegisterTriggerUnknownType(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("RegisterFunction: %v", err)
 	}
+	triggerID := "test-trigerr-go-" + uniqueSuffix(t)
 	if err := c.RegisterTrigger(
-		"test-trigerr-go",
+		triggerID,
 		"this-trigger-type-does-not-exist",
 		"test::trigerr::go::fn",
 		json.RawMessage(`{}`),
@@ -35,22 +37,43 @@ func TestRegisterTriggerUnknownType(t *testing.T) {
 	}
 	settle()
 
-	// The engine surfaces a failed registration asynchronously as a
-	// triggerregistrationresult with an error; the SDK logs it rather than returning it
-	// from RegisterTrigger (matching the reference SDKs). The assertable, version-stable
-	// effect is that the worker survives the failed registration and the connection stays
-	// usable — a follow-up invocation still round-trips.
+	// The engine rejects a trigger whose type no worker provides (it surfaces the failure
+	// asynchronously as a triggerregistrationresult error, which the SDK logs rather than
+	// returning — matching the reference SDKs). The observable, version-stable signal is
+	// that the rejected trigger never becomes an ACTIVE registered trigger: it must not
+	// appear in engine::registered-triggers::list.
 	res, err := c.Trigger(ctxFor(t, 5*time.Second), iii.TriggerRequest{
-		FunctionID: iii.FnListFunctions,
+		FunctionID: iii.FnListRegisteredTriggers,
 		Data:       json.RawMessage(`{}`),
 	})
 	if err != nil {
-		t.Fatalf("worker unusable after failed trigger registration: %v", err)
+		t.Fatalf("engine::registered-triggers::list: %v", err)
 	}
 	var out struct {
-		Functions []json.RawMessage `json:"functions"`
+		Triggers []struct {
+			ID string `json:"id"`
+		} `json:"triggers"`
 	}
+	// The response key may be "triggers" or a bare array depending on engine version;
+	// decode leniently and scan for our id.
 	if err := json.Unmarshal(res, &out); err != nil {
-		t.Fatalf("decode functions: %v\nraw: %s", err, res)
+		// Fall back: ensure our id simply isn't present anywhere in the payload.
+		if strings.Contains(string(res), triggerID) {
+			t.Fatalf("rejected trigger %q appears in registered-triggers list: %s", triggerID, res)
+		}
+		return
+	}
+	for _, tr := range out.Triggers {
+		if tr.ID == triggerID {
+			t.Errorf("rejected trigger %q must not be an active registered trigger", triggerID)
+		}
+	}
+
+	// And the worker is still usable after the rejection.
+	if _, err := c.Trigger(ctxFor(t, 5*time.Second), iii.TriggerRequest{
+		FunctionID: iii.FnListFunctions,
+		Data:       json.RawMessage(`{}`),
+	}); err != nil {
+		t.Fatalf("worker unusable after failed trigger registration: %v", err)
 	}
 }

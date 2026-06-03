@@ -281,6 +281,34 @@ func MarshalMessage(msg any) ([]byte, error) {
 		return marshalEnvelope(MsgPing, struct{}{})
 	case *PongMessage:
 		return marshalEnvelope(MsgPong, struct{}{})
+
+	// Value forms, so the documented "by pointer or value" contract holds (e.g.
+	// MarshalMessage(PingMessage{})). Each delegates to the pointer case above.
+	case RegisterTriggerTypeMessage:
+		return marshalEnvelope(MsgRegisterTriggerType, &m)
+	case RegisterTriggerMessage:
+		return marshalEnvelope(MsgRegisterTrigger, &m)
+	case TriggerRegistrationResultMessage:
+		return marshalEnvelope(MsgTriggerRegistrationResult, &m)
+	case UnregisterTriggerMessage:
+		return marshalEnvelope(MsgUnregisterTrigger, &m)
+	case RegisterFunctionMessage:
+		return marshalEnvelope(MsgRegisterFunction, &m)
+	case UnregisterFunctionMessage:
+		return marshalEnvelope(MsgUnregisterFunction, &m)
+	case InvokeFunctionMessage:
+		return marshalEnvelope(MsgInvokeFunction, &m)
+	case InvocationResultMessage:
+		return marshalEnvelope(MsgInvocationResult, &m)
+	case RegisterServiceMessage:
+		return marshalEnvelope(MsgRegisterService, &m)
+	case WorkerRegisteredMessage:
+		return marshalEnvelope(MsgWorkerRegistered, &m)
+	case PingMessage:
+		return marshalEnvelope(MsgPing, struct{}{})
+	case PongMessage:
+		return marshalEnvelope(MsgPong, struct{}{})
+
 	default:
 		return nil, fmt.Errorf("iii: cannot marshal unknown message type %T", msg)
 	}

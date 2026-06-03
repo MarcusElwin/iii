@@ -118,6 +118,18 @@ func TestGoldenFrames(t *testing.T) {
 			msg:  &PingMessage{},
 			want: `{"type":"ping"}`,
 		},
+		{
+			// MarshalMessage accepts value forms too, not just pointers — the
+			// documented "by pointer or value" contract.
+			name: "value message marshals like its pointer",
+			msg:  PingMessage{},
+			want: `{"type":"ping"}`,
+		},
+		{
+			name: "value invoke marshals like its pointer",
+			msg:  InvokeFunctionMessage{FunctionID: "test.fn", Data: json.RawMessage(`{}`)},
+			want: `{"type":"invokefunction","function_id":"test.fn","data":{}}`,
+		},
 	}
 
 	for _, tt := range tests {

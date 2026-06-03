@@ -13,13 +13,29 @@ package iii_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	iii "github.com/iii-hq/iii/sdk/packages/go/iii"
 )
+
+// suffixCounter makes per-call ids unique across `go test -count=N` and concurrent runs
+// against the same engine, which keeps a global route/function registry.
+var suffixCounter atomic.Uint64
+
+// uniqueSuffix returns a short token unique to this test invocation, derived from the
+// test name plus a monotonic counter. Use it to build engine-global identifiers (HTTP
+// routes, trigger ids) so retries and repeated runs don't collide.
+func uniqueSuffix(t *testing.T) string {
+	t.Helper()
+	name := strings.NewReplacer("/", "-", " ", "-").Replace(t.Name())
+	return fmt.Sprintf("%s-%d", name, suffixCounter.Add(1))
+}
 
 // engineWSURL is the worker WebSocket endpoint. Default matches a local
 // `iii --use-default-config`; CI overrides it to the test engine on :49199.

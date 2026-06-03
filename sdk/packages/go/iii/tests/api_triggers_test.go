@@ -37,10 +37,13 @@ func TestHTTPTriggerRoundtrip(t *testing.T) {
 		t.Fatalf("RegisterFunction: %v", err)
 	}
 
-	// Use a unique path so parallel test runs don't collide on routes.
-	const path = "/test-go-greet"
+	// Derive a unique path and trigger id from the test name + a nonce, so retries,
+	// `go test -count`, and concurrent runs against the same engine don't collide on the
+	// engine's global HTTP route registry.
+	suffix := uniqueSuffix(t)
+	path := "/test-go-greet-" + suffix
 	if err := c.RegisterTrigger(
-		"test-go-http",
+		"test-go-http-"+suffix,
 		"http",
 		"test::http::go::greet",
 		json.RawMessage(`{"api_path":"`+path+`","http_method":"POST"}`),
