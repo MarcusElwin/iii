@@ -74,8 +74,7 @@ func main() {
 > **HTTP trigger envelope.** When a function is reached over an `http` trigger, the
 > engine wraps the request as `{ path, method, body, headers, … }` and expects the
 > function to return `{ status_code, body }`. Functions invoked only over the socket can
-> use any payload shape. See the engine's
-> [REST API docs](../../../engine/src/workers/rest_api/README.md).
+> use any payload shape. See the [HTTP trigger documentation](https://iii.dev/docs).
 
 A complete, runnable version lives in the [`iii-example`](../iii-example) module.
 
