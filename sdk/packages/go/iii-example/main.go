@@ -52,7 +52,10 @@ func main() {
 		url = iii.DefaultEngineURL
 	}
 
-	client := iii.New(url)
+	// RegisterWorker creates the client and starts connecting in the background, matching
+	// registerWorker in the Node/Rust SDKs. Register functions/triggers below; they are
+	// sent once Connect reports the first connection.
+	client := iii.RegisterWorker(url)
 
 	// Register the function. The handler receives the raw JSON payload and returns any
 	// value, which the SDK marshals into the invocation result. Because this function is
