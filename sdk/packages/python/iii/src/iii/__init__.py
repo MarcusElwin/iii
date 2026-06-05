@@ -4,7 +4,6 @@ from iii_observability import (
     DEFAULT_ALLOWLIST,
     REDACTED_PLACEHOLDER,
     BaggageSpanProcessor,
-    Logger,
     OtelConfig,
     ReconnectionConfig,
     current_span_id,
@@ -140,8 +139,6 @@ __all__ = [
     "TriggerActionEnqueue",
     "TriggerActionVoid",
     "TriggerRequest",
-    # Logger
-    "Logger",
     # Triggers
     "Trigger",
     "TriggerConfig",
