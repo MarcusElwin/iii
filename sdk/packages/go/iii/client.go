@@ -36,9 +36,18 @@ type Client struct {
 	reconnect ReconnectConfig
 	name      string
 
-	// outbound carries already-marshaled frames to the single writer goroutine. It is
-	// the only path to the socket, so writes are serialized without a write mutex.
+	// outbound carries connection-AGNOSTIC frames (registrations + offline-buffered
+	// invokes) to the single writer goroutine. It is shared across the client's lifetime
+	// and its contents are meant to (re)send on whichever connection is live.
 	outbound chan []byte
+
+	// reply is the per-connection channel for connection-SCOPED replies (pong,
+	// InvocationResult, TriggerRegistrationResult): frames that are only meaningful on the
+	// socket that prompted them. A fresh channel is created per connection and discarded on
+	// teardown, so a reply can never leak onto the next connection (iii-hq/iii#1749).
+	// Guarded by replyMu; nil when there is no live connection.
+	replyMu sync.Mutex
+	reply   chan []byte
 
 	mu       sync.Mutex
 	state    ConnectionState
@@ -452,15 +461,23 @@ func (c *Client) runConnection() error {
 	// The engine can send large registration payloads; lift the default read limit.
 	conn.SetReadLimit(-1)
 
+	// A reply channel owned by THIS connection. Connection-scoped replies go here so they
+	// can never be drained by a later connection's writer (iii-hq/iii#1749).
+	reply := make(chan []byte, 64)
+	c.replyMu.Lock()
+	c.reply = reply
+	c.replyMu.Unlock()
+
 	c.mu.Lock()
 	c.conn = conn
 	c.state = StateConnected
 	c.mu.Unlock()
 
-	// Start the single writer for this connection.
+	// Start the single writer for this connection. It drains the shared outbound channel
+	// and this connection's own reply channel.
 	writerDone := make(chan struct{})
 	c.writerWG.Add(1)
-	go c.writeLoop(connCtx, conn, writerDone)
+	go c.writeLoop(connCtx, conn, reply, writerDone)
 
 	// Signal the first successful connection to Connect's caller.
 	c.connOnce.Do(func() { close(c.connected) })
@@ -472,7 +489,12 @@ func (c *Client) runConnection() error {
 	// Read loop runs until the socket errors or closes.
 	readErr := c.readLoop(connCtx, conn)
 
-	// Tear down this connection: stop the writer, close the socket, clear conn.
+	// Tear down this connection: stop the writer, close the socket, clear conn. Detach the
+	// reply channel first so any reply enqueued during teardown is dropped (it has no live
+	// socket to go to) rather than lingering for the next connection.
+	c.replyMu.Lock()
+	c.reply = nil
+	c.replyMu.Unlock()
 	cancel()
 	<-writerDone
 	_ = conn.CloseNow()
@@ -577,10 +599,13 @@ type workerMetadata struct {
 // process can wire this to the module version later.
 const sdkVersion = "0.1.0"
 
-// writeLoop is the single writer for one connection: it drains outbound until the
-// connection context is cancelled. Routing every send through here keeps the socket
+// writeLoop is the single writer for one connection. It drains the shared outbound
+// channel (connection-agnostic frames) and this connection's own reply channel
+// (connection-scoped replies) until the connection context is cancelled. reply is passed
+// in (not read from c.reply) so this loop only ever touches its own connection's replies,
+// even if a reconnect swaps c.reply. Routing every send through here keeps the socket
 // single-writer, as coder/websocket requires.
-func (c *Client) writeLoop(ctx context.Context, conn *websocket.Conn, done chan struct{}) {
+func (c *Client) writeLoop(ctx context.Context, conn *websocket.Conn, reply <-chan []byte, done chan struct{}) {
 	defer c.writerWG.Done()
 	defer close(done)
 	for {
@@ -592,6 +617,10 @@ func (c *Client) writeLoop(ctx context.Context, conn *websocket.Conn, done chan 
 		case frame := <-c.outbound:
 			if err := conn.Write(ctx, websocket.MessageText, frame); err != nil {
 				return // write failure ends the connection; supervisor reconnects
+			}
+		case frame := <-reply:
+			if err := conn.Write(ctx, websocket.MessageText, frame); err != nil {
+				return
 			}
 		}
 	}
@@ -639,12 +668,21 @@ func (c *Client) dispatch(ctx context.Context, dec *DecodedMessage) {
 	}
 }
 
-// enqueueOutboundDirect sends a frame to the writer without the offline-buffering path —
-// used for protocol replies (pong, invocation results) that are only meaningful on the
-// connection they answer.
+// enqueueOutboundDirect sends a connection-scoped reply (pong, InvocationResult,
+// TriggerRegistrationResult) on the current connection's reply channel. If there is no
+// live connection, the reply is dropped: it answers a request that arrived on a socket
+// that is now gone, so there is nowhere valid to send it (the engine re-drives on
+// reconnect if it still wants the work). This is what keeps a stale reply from leaking
+// onto the next connection (iii-hq/iii#1749).
 func (c *Client) enqueueOutboundDirect(frame []byte) {
+	c.replyMu.Lock()
+	reply := c.reply
+	c.replyMu.Unlock()
+	if reply == nil {
+		return
+	}
 	select {
-	case c.outbound <- frame:
+	case reply <- frame:
 	case <-c.shutdown:
 	}
 }
