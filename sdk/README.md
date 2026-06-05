@@ -14,7 +14,7 @@ These are iii official SDKs for Node, Python, Rust, and Go. See the [engine READ
 | [`iii-sdk`](https://www.npmjs.com/package/iii-sdk) | Node.js / TypeScript | `pnpm add iii-sdk` or `npm install iii-sdk` | [README](./packages/node/iii/README.md)   |
 | [`iii-sdk`](https://pypi.org/project/iii-sdk/)     | Python               | `pip install iii-sdk` | [README](./packages/python/iii/README.md) |
 | [`iii-sdk`](https://crates.io/crates/iii-sdk)      | Rust                 | Add to `Cargo.toml`   | [README](./packages/rust/iii/README.md)   |
-| [`iii`](./packages/go/iii)                         | Go                   | `go get github.com/iii-hq/iii/sdk/packages/go/iii` | [README](./packages/go/iii/README.md) |
+| [`iii-sdk`](./packages/go/iii)                         | Go                   | `go get github.com/iii-hq/iii/sdk/packages/go/iii` | [README](./packages/go/iii/README.md) |
 
 ## Hello World
 
