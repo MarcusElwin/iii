@@ -72,17 +72,25 @@ func TestReplyChannelLifecycle(t *testing.T) {
 	}
 
 	// Drop the connection; the teardown detaches the reply channel. Poll for it to go nil
-	// (teardown runs on the connection goroutine).
+	// (teardown runs on the connection goroutine). Clear the recorded frames before the
+	// drop so the post-reconnect assertion sees every frame from the disconnect window
+	// onward — clearing later could erase a leaked pong during a fast reconnect.
+	m.clear()
 	m.closeActiveConnection()
 	deadline := time.Now().Add(2 * time.Second)
+	detached := false
 	for time.Now().Before(deadline) {
 		c.replyMu.Lock()
 		nilled := c.reply == nil
 		c.replyMu.Unlock()
 		if nilled {
+			detached = true
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+	if !detached {
+		t.Fatal("reply channel was not detached after disconnect")
 	}
 
 	// A reply enqueued in the disconnected window must be dropped (no panic, no block,
@@ -90,8 +98,8 @@ func TestReplyChannelLifecycle(t *testing.T) {
 	c.enqueueOutboundDirect([]byte(`{"type":"pong"}`))
 
 	// After reconnect, the mock must not receive that stale pong. Wait for reconnect
-	// (a fresh registration/metadata frame), then assert no pong was recorded.
-	m.clear()
+	// (a fresh registration/metadata frame), then assert no pong was recorded. Nothing
+	// was cleared since the disconnect, so a leaked pong cannot escape the snapshot.
 	got := m.waitFor(func(msgs []map[string]json.RawMessage) bool {
 		return len(msgs) >= 1 // some frame after reconnect (worker metadata)
 	}, 2*time.Second)
